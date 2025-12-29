@@ -3,9 +3,7 @@ interface LanguageSwitchProps {
   onLanguageChange: (lang: "EN" | "ID" | "CN" | "JP" | "KR") => void;
 }
 
-export default function LanguageSwitch({
-  language,
-  onLanguageChange,
+export default function LanguageSwitch({language, onLanguageChange,
 }: LanguageSwitchProps) {
   return (
     <div className="flex justify-center mb-8 sticky top-4 z-50">

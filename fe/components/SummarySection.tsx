@@ -82,7 +82,7 @@ export default function SummarySection({
         onClick={handleDownload}
         className="w-full bg-white/10 hover:bg-white/20 text-white font-semibold py-3 px-6 rounded-full border border-white/20 transition-all duration-300"
       >
-        ⬇ Download Summary
+        Download Summary
       </button>
     </div>
   );
