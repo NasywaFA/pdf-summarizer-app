@@ -1,12 +1,14 @@
-export default function Header() {
+'use client';
+
+import React from 'react';
+
+export const Header: React.FC = () => {
   return (
-    <div className="text-center mb-12">
-      <h1 className="text-5xl md:text-6xl font-extrabold text-white mb-3 drop-shadow-lg">
-        PDF AI Summarizer
-      </h1>
-      <p className="text-white/90 text-lg md:text-xl font-light">
-        Upload your PDF and get an intelligent summary in seconds
-      </p>
-    </div>
+    <header className="sticky top-0 z-50 bg-[#4a1420]/60 backdrop-blur-md border-b border-white/10 px-6 py-4">
+      <div className="flex items-center justify-between">
+        <h1 className="text-2xl font-bold text-white">PDF Summarizer</h1>
+        <div className="text-sm text-white/70">AI-Powered Document Analysis</div>
+      </div>
+    </header>
   );
-}
+};

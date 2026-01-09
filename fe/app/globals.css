@@ -2,13 +2,52 @@
 @tailwind components;
 @tailwind utilities;
 
-* {
-  box-sizing: border-box;
-  padding: 0;
-  margin: 0;
+body {
+  @apply bg-gradient-to-br from-[#5a1f2e] via-[#8a3a4a] to-[#4a1420];
+  min-height: 100vh;
+  background-repeat: no-repeat;
+  background-attachment: fixed;
+  background-size: cover;
+
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen,
+    Ubuntu, Cantarell, "Open Sans", "Helvetica Neue", sans-serif;
 }
 
-body {
-  margin: 0;
-  font-family: apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 140, 160, 0.45) transparent;
+}
+
+*::-webkit-scrollbar {
+  width: 8px;
+}
+
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+*::-webkit-scrollbar-thumb {
+  background: rgba(255, 140, 160, 0.45);
+  backdrop-filter: blur(8px);
+  border-radius: 9999px;
+  border: 1px solid rgba(255, 180, 200, 0.35);
+}
+
+*::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 180, 200, 0.65);
+}
+
+@keyframes slide-in {
+  from {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+.animate-slide-in {
+  animation: slide-in 0.3s ease-out;
 }

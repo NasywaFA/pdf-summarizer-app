@@ -1,5 +1,5 @@
-import PDFSummarizer from "@/components/PDFSummarizer";
+import { redirect } from 'next/navigation';
 
 export default function Home() {
-  return <PDFSummarizer />;
+  redirect('/dashboard');
 }

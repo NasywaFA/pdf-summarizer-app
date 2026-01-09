@@ -1,89 +1,172 @@
-"use client";
+'use client';
 
-import ReactMarkdown from "react-markdown";
+import React, { useState } from 'react';
+import { Card } from './ui/Card';
+import { Button } from './ui/Button';
+import { SummaryType } from '@/types/SummaryType';
 
 interface SummarySectionProps {
-  summary: string;
-  fileName?: string;
+  summaries: SummaryType[];
+  onEdit: (id: string, content: string) => void;
+  onDelete: (id: string) => void;
 }
 
-export default function SummarySection({
-  summary,
-  fileName,
-}: SummarySectionProps) {
-  if (!summary) return null;
+export const SummarySection: React.FC<SummarySectionProps> = ({
+  summaries,
+  onEdit,
+  onDelete,
+}) => {
+  const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editContent, setEditContent] = useState('');
 
-  const handleDownload = () => {
-    const blob = new Blob([summary], { type: "text/plain" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `summary_${fileName || "document"}.txt`;
-    a.click();
-    URL.revokeObjectURL(url);
+  const handleEdit = (summary: SummaryType) => {
+    setEditingId(summary.id);
+    setEditContent(summary.content);
+  };
+
+  const handleSave = () => {
+    if (editingId) {
+      onEdit(editingId, editContent);
+      setEditingId(null);
+      setEditContent('');
+    }
+  };
+
+  const handleCancel = () => {
+    setEditingId(null);
+    setEditContent('');
+  };
+
+  const getStatusBadge = (status: string) => {
+    const colors = {
+      processing: 'bg-yellow-500/80',
+      completed: 'bg-green-500/80',
+      failed: 'bg-red-500/80',
+      timeout: 'bg-orange-500/80',
+    };
+    return (
+      <span
+        className={`px-2 py-1 rounded-full text-xs text-white ${
+          colors[status as keyof typeof colors] || 'bg-white-500/80'
+        }`}
+      >
+        {status}
+      </span>
+    );
+  };
+
+  if (summaries.length === 0) {
+    return (
+      <Card className="p-6">
+        <p className="text-gray-500 text-center">
+          No summaries yet. Generate one to get started.
+        </p>
+      </Card>
+    );
+  }
+
+  const isPlaceholder = (content: string) => {
+    return content?.startsWith('AI-generated summary for PDF');
   };
 
   return (
-    <div className="bg-white/5 backdrop-blur-md border border-white/10 rounded-3xl p-8 shadow-2xl">
-      <h3 className="text-white text-2xl font-bold mb-6">Summary</h3>
+    <div className="space-y-3">
+      {summaries.map((summary) => (
+        <Card key={summary.id} className="p-4">
+          <div
+            className="flex items-center justify-between cursor-pointer"
+            onClick={() =>
+              setExpandedId(expandedId === summary.id ? null : summary.id)
+            }
+          >
+            <div className="flex-1">
+              <div className="flex items-center gap-2 mb-1">
+                <span className="text-sm font-medium text-gray-800">
+                  {summary.language} - {summary.style}
+                </span>
+                {getStatusBadge(summary.status)}
+                {summary.is_edited && (
+                  <span className="text-xs text-gray-500 italic">(edited)</span>
+                )}
+              </div>
+              <p className="text-xs text-gray-500">
+                {new Date(summary.created_at).toLocaleString()}
+              </p>
+            </div>
+            <span className="text-gray-500">
+              {expandedId === summary.id ? '▼' : '▶'}
+            </span>
+          </div>
 
-      <div className="bg-white/5 border-2 border-white/10 rounded-2xl p-6 mb-6 text-white/90 prose prose-invert prose-lg max-w-none">
-        <ReactMarkdown
-          components={{
-            h1: ({ node, ...props }) => (
-              <h1
-                className="text-3xl font-bold text-white mb-4 mt-6"
-                {...props}
-              />
-            ),
-            h2: ({ node, ...props }) => (
-              <h2
-                className="text-2xl font-bold text-white mb-3 mt-5"
-                {...props}
-              />
-            ),
-            h3: ({ node, ...props }) => (
-              <h3
-                className="text-xl font-bold text-white mb-2 mt-4"
-                {...props}
-              />
-            ),
-            p: ({ node, ...props }) => (
-              <p className="mb-3 leading-relaxed text-white/90" {...props} />
-            ),
-            strong: ({ node, ...props }) => (
-              <strong className="text-yellow-300 font-bold" {...props} />
-            ),
-            em: ({ node, ...props }) => (
-              <em className="text-blue-300" {...props} />
-            ),
-            ul: ({ node, ...props }) => (
-              <ul className="list-disc ml-6 mb-4 space-y-1" {...props} />
-            ),
-            ol: ({ node, ...props }) => (
-              <ol className="list-decimal ml-6 mb-4 space-y-1" {...props} />
-            ),
-            li: ({ node, ...props }) => (
-              <li className="text-white/90" {...props} />
-            ),
-            code: ({ node, ...props }) => (
-              <code
-                className="bg-white/10 px-2 py-1 rounded text-yellow-300"
-                {...props}
-              />
-            ),
-          }}
-        >
-          {summary}
-        </ReactMarkdown>
-      </div>
+          {expandedId === summary.id && (
+            <div className="mt-4 pt-4 border-t border-white/50">
+              {editingId === summary.id ? (
+                <div className="space-y-3">
+                  <textarea
+                    value={editContent}
+                    onChange={(e) => setEditContent(e.target.value)}
+                    className="w-full h-40 p-3 rounded-lg bg-white/50 border border-white/50 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                  <div className="flex gap-2">
+                    <Button variant="primary" onClick={handleSave}>
+                      Save
+                    </Button>
+                    <Button variant="secondary" onClick={handleCancel}>
+                      Cancel
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  <div className="bg-white/50 rounded-lg p-4 border border-white/50">
+                    {summary.status === 'processing' && (
+                      <p className="text-sm italic text-gray-500">
+                        AI is generating this summary...
+                      </p>
+                    )}
 
-      <button
-        onClick={handleDownload}
-        className="w-full bg-white/10 hover:bg-white/20 text-white font-semibold py-3 px-6 rounded-full border border-white/20 transition-all duration-300"
-      >
-        Download Summary
-      </button>
+                    {summary.status === 'failed' || summary.status === 'timeout' ? (
+                      <p className="text-sm text-red-500">
+                        Failed to generate summary. Please try again.
+                      </p>
+                    ) : summary.status === 'completed' ? (
+                      isPlaceholder(summary.content) ? (
+                        <p className="text-sm italic text-gray-400">
+                          Summary still contains placeholder content.
+                        </p>
+                      ) : (
+                        <p className="text-gray-700 whitespace-pre-wrap">
+                          {summary.content}
+                        </p>
+                      )
+                    ) : null}
+
+                  </div>
+                  <div className="flex gap-2">
+                    <Button
+                      variant="secondary"
+                      disabled={summary.status !== 'completed' || isPlaceholder(summary.content)}
+                      onClick={() => handleEdit(summary)}
+                    >
+                      Edit
+                    </Button>
+
+                    <Button
+                      variant="danger"
+                      disabled={summary.status === 'processing'}
+                      onClick={() => onDelete(summary.id)}
+                    >
+                      Delete
+                    </Button>
+
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+        </Card>
+      ))}
     </div>
   );
-}
+};

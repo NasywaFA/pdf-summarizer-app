@@ -1,135 +1,147 @@
-import { SummaryStyle } from "./PDFSummarizer";
+'use client';
+
+import React, { useState, useRef } from 'react';
+import { Card } from './ui/Card';
+import { Button } from './ui/Button';
 
 interface UploadSectionProps {
-  file: File | null;
-  onFileChange: (file: File | null) => void;
-  summaryStyle: SummaryStyle;
-  onStyleChange: (style: SummaryStyle) => void;
-  onSummarize: () => void;
-  loading: boolean;
-  error: string;
+  onUpload: (file: File) => void;
+  isUploading: boolean;
 }
 
-export default function UploadSection({
-  file,
-  onFileChange,
-  summaryStyle,
-  onStyleChange,
-  onSummarize,
-  loading,
-  error,
-}: UploadSectionProps) {
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const selectedFile = e.target.files?.[0];
-    if (selectedFile && selectedFile.type === "application/pdf") {
-      onFileChange(selectedFile);
+export const UploadSection: React.FC<UploadSectionProps> = ({
+  onUpload,
+  isUploading,
+}) => {
+  const [dragActive, setDragActive] = useState(false);
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleDrag = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (e.type === 'dragenter' || e.type === 'dragover') {
+      setDragActive(true);
+    } else if (e.type === 'dragleave') {
+      setDragActive(false);
     }
   };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setDragActive(false);
+
+    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+      handleFile(e.dataTransfer.files[0]);
+    }
+  };
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    e.preventDefault();
+    if (e.target.files && e.target.files[0]) {
+      handleFile(e.target.files[0]);
+    }
+  };
+
+  const handleFile = (file: File) => {
+    if (file.type === 'application/pdf') {
+      setSelectedFile(file);
+      const url = URL.createObjectURL(file);
+      setPreviewUrl(url);
+    } else {
+      alert('Please upload a PDF file');
+    }
+  };
+
+  const handleUpload = () => {
+    if (selectedFile) {
+      onUpload(selectedFile);
+    }
+  };
+
   return (
-    <div className="bg-white/5 backdrop-blur-md border border-white/10 rounded-3xl p-8 mb-8 shadow-2xl">
-      <h3 className="text-white text-2xl font-bold mb-6">Upload Your PDF</h3>
+    <Card className="p-6">
+      <h3 className="text-lg font-semibold mb-4 text-gray-800">Upload PDF</h3>
 
-      <div className="border-2 border-dashed border-[#667eea]/50 rounded-2xl p-8 mb-6 bg-white/5">
-        <input
-          type="file"
-          accept=".pdf"
-          onChange={handleFileChange}
-          className="hidden"
-          id="pdf-upload"
-        />
-        <label
-          htmlFor="pdf-upload"
-          className="block text-center cursor-pointer"
+      {!selectedFile ? (
+        <div
+          className={`border-2 border-dashed rounded-xl p-8 text-center transition-colors ${
+            dragActive
+              ? 'border-blue-500 bg-blue-50/50'
+              : 'border-white-300 bg-white/20'
+          }`}
+          onDragEnter={handleDrag}
+          onDragLeave={handleDrag}
+          onDragOver={handleDrag}
+          onDrop={handleDrop}
         >
-          <div className="text-white/70 mb-2">
-            {file ? file.name : "Choose a PDF file"}
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".pdf"
+            onChange={handleChange}
+            className="hidden"
+          />
+          <div className="space-y-4">
+            <div className="text-4xl">📄</div>
+            <div>
+              <p className="text-gray-700 mb-2">
+                Drag and drop your PDF here, or
+              </p>
+              <Button
+                variant="secondary"
+                onClick={() => fileInputRef.current?.click()}
+              >
+                Browse Files
+              </Button>
+            </div>
+            <p className="text-sm text-gray-500">PDF files only</p>
           </div>
-          <div className="text-white/50 text-sm">
-            Upload a PDF document to generate an AI-powered summary
+        </div>
+      ) : (
+        <div className="space-y-4">
+          <div className="bg-white/40 rounded-lg p-4 border border-white/50">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-sm font-medium text-gray-700">
+                {selectedFile.name}
+              </span>
+              <button
+                onClick={() => {
+                  setSelectedFile(null);
+                  setPreviewUrl(null);
+                }}
+                className="text-red-500 hover:text-red-700"
+              >
+                ✕
+              </button>
+            </div>
+            <p className="text-xs text-gray-500">
+              {(selectedFile.size / 1024 / 1024).toFixed(2)} MB
+            </p>
           </div>
-        </label>
-      </div>
 
-      {file && (
-        <div className="bg-green-500/10 border border-green-500/30 rounded-xl p-4 mb-4">
-          <p className="text-green-400 font-semibold">
-            {file.name} uploaded successfully!
-          </p>
-          <p className="text-white/60 text-sm mt-1">
-            File size: {(file.size / 1024).toFixed(2)} KB
-          </p>
+          {previewUrl && (
+            <div className="bg-white/40 rounded-lg p-2 border border-white/50">
+              <iframe
+                src={previewUrl}
+                className="w-full h-64 rounded"
+                title="PDF Preview"
+              />
+            </div>
+          )}
+
+          <Button
+            variant="primary"
+            onClick={handleUpload}
+            disabled={isUploading}
+            className="w-full"
+          >
+            {isUploading ? 'Uploading...' : 'Upload PDF'}
+          </Button>
         </div>
       )}
-
-      {error && (
-        <div className="bg-red-500/10 border border-red-500/30 rounded-xl p-4 mb-4">
-          <p className="text-red-400">{error}</p>
-        </div>
-      )}
-
-      {/* Summary Style Selector */}
-      <div className="mb-6">
-        <label className="text-white/80 text-sm font-medium mb-3 block">
-          Summary Style
-        </label>
-        <div className="flex gap-3">
-          <button
-            onClick={() => onStyleChange("professional")}
-            className={`flex-1 py-3 px-4 rounded-xl font-semibold transition-all duration-300 ${
-              summaryStyle === "professional"
-                ? "bg-gradient-to-r from-[#d16ba5] via-[#e07a9b] to-[#f4978e] text-white shadow-lg"
-                : "bg-white/5 text-white/60 hover:bg-white/10 border border-white/10"
-            }`}
-          >
-            Professional
-          </button>
-          <button
-            onClick={() => onStyleChange("simple")}
-            className={`flex-1 py-3 px-4 rounded-xl font-semibold transition-all duration-300 ${
-              summaryStyle === "simple"
-                ? "bg-gradient-to-r from-[#d16ba5] via-[#e07a9b] to-[#f4978e] text-white shadow-lg"
-                : "bg-white/5 text-white/60 hover:bg-white/10 border border-white/10"
-            }`}
-          >
-            Simple
-          </button>
-        </div>
-        <p className="text-white/50 text-xs mt-2">
-          {summaryStyle === "professional"
-            ? "Formal executive summary with detailed sections"
-            : "Easy-to-read summary in casual language"}
-        </p>
-      </div>
-
-      <button
-        onClick={onSummarize}
-        disabled={!file || loading}
-        className="w-full bg-gradient-to-r from-[#d16ba5] via-[#e07a9b] to-[#f4978e] text-white font-bold py-4 px-8 rounded-full text-lg shadow-lg shadow-[#e07a9b]/40 hover:shadow-[#e07a9b]/60 hover:-translate-y-1 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:translate-y-0"
-      >
-        {loading ? (
-          <span className="flex items-center justify-center gap-2">
-            <svg className="animate-spin h-5 w-5" viewBox="0 0 24 24">
-              <circle
-                className="opacity-25"
-                cx="12"
-                cy="12"
-                r="10"
-                stroke="currentColor"
-                strokeWidth="4"
-                fill="none"
-              />
-              <path
-                className="opacity-75"
-                fill="currentColor"
-                d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-              />
-            </svg>
-            AI is analyzing...
-          </span>
-        ) : (
-          "Generate Summary"
-        )}
-      </button>
-    </div>
+    </Card>
   );
-}
+};
