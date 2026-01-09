@@ -28,7 +28,6 @@ export const PDFSummarizer: React.FC = () => {
   const [summaries, setSummaries] = useState<SummaryType[]>([]);
   const [language, setLanguage] = useState<Language>("EN");
   const [style, setStyle] = useState<string>("");
-  const [pendingPDF, setPendingPDF] = useState<PendingPDF | null>(null);
   const [generatingState, setGeneratingState] =
     useState<GeneratingState | null>(null);
   const [elapsedTime, setElapsedTime] = useState(0);
@@ -36,6 +35,8 @@ export const PDFSummarizer: React.FC = () => {
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [generateError, setGenerateError] = useState<string | null>(null);
   const [showPreview, setShowPreview] = useState(false);
+  const [pendingPDF, setPendingPDF] = useState<PendingPDF | null>(null);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [isLocked, setIsLocked] = useState(false);
   const [completedSummary, setCompletedSummary] = useState<SummaryType | null>(
     null
@@ -62,10 +63,8 @@ export const PDFSummarizer: React.FC = () => {
   useEffect(() => {
     if (activePDF) {
       loadSummaries(activePDF.id);
-      setShowPreview(true);
     } else {
       setSummaries([]);
-      setShowPreview(false);
     }
   }, [activePDF]);
 
@@ -165,13 +164,20 @@ export const PDFSummarizer: React.FC = () => {
   }
   const handleFileSelect = (file: File) => {
     setUploadError(null);
-    if (file.type === "application/pdf") {
-      const url = URL.createObjectURL(file);
-      setPendingPDF({ file, previewUrl: url });
-      setStyle("");
-    } else {
+    setShowPreview(false);
+    setStyle("");
+
+    if (file.type !== "application/pdf") {
       setUploadError("Please upload a PDF file");
+      return;
     }
+
+    const url = URL.createObjectURL(file);
+
+    setPendingPDF({
+      file,
+      previewUrl: url,
+    });
   };
 
   {
@@ -379,7 +385,7 @@ export const PDFSummarizer: React.FC = () => {
       <div
         className={`${
           leftSidebarOpen ? "w-64" : "w-0"
-        } bg-white/10 backdrop-blur-md border-r border-white/30 transition-all duration-300 overflow-hidden`}
+        } bg-white/20 backdrop-blur-md border-r border-white/30 transition-all duration-300 overflow-hidden`}
       >
         <div className="p-4 h-full flex flex-col">
           {/* Sidebar Header with Create New Button */}
@@ -409,8 +415,8 @@ export const PDFSummarizer: React.FC = () => {
                 key={pdf.id}
                 className={`relative overflow-visible p-3 rounded-lg cursor-pointer transition-all ${
                   activePDF?.id === pdf.id
-                    ? "bg-yellow-200/55 text-white backdrop-blur-sm"
-                    : "bg-white/30 hover:bg-white/50 backdrop-blur-sm border border-white/50"
+                    ? "bg-yellow-200/55 text-gray-900 backdrop-blur-sm"
+                    : "bg-white/50 hover:bg-white/30 backdrop-blur-sm border border-white/50"
                 }`}
                 onClick={() => setActivePDF(pdf)}
               >
@@ -425,7 +431,7 @@ export const PDFSummarizer: React.FC = () => {
                     e.stopPropagation();
                     handleDeletePDF(pdf.id);
                   }}
-                  className="text-xs mt-2 text-red-300 hover:text-red-100"
+                  className="text-xs mt-2 text-red-700 hover:text-red-500"
                 >
                   Delete
                 </button>
@@ -544,7 +550,10 @@ export const PDFSummarizer: React.FC = () => {
                 </div>
 
                 <div
-                  onClick={() => setShowPreview(true)}
+                  onClick={() => {
+                    setPreviewUrl(pendingPDF.previewUrl);
+                    setShowPreview(true);
+                  }}
                   className="bg-white/40 rounded-lg p-4 border border-white/50 mb-4 cursor-pointer hover:bg-white/50 transition"
                 >
                   <div className="flex items-center justify-between">
@@ -559,16 +568,6 @@ export const PDFSummarizer: React.FC = () => {
                     {(pendingPDF.file.size / 1024 / 1024).toFixed(2)} MB
                   </p>
                 </div>
-
-                {showPreview && (
-                  <div className="bg-white/40 rounded-lg p-2 border border-white/50">
-                    <iframe
-                      src={pendingPDF.previewUrl}
-                      className="w-full h-64 rounded"
-                      title="PDF Preview"
-                    />
-                  </div>
-                )}
               </Card>
 
               {/* Generate Summary Card */}
@@ -620,6 +619,31 @@ export const PDFSummarizer: React.FC = () => {
                 </div>
               </Card>
             </>
+          )}
+
+          {showPreview && previewUrl && (
+            <div
+              className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm"
+              onClick={() => setShowPreview(false)}
+            >
+              <div
+                className="relative w-[90vw] h-[90vh] bg-white rounded-xl shadow-2xl overflow-hidden"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <button
+                  onClick={() => setShowPreview(false)}
+                  className="absolute top-3 right-3 z-10 bg-black/60 hover:bg-black/80 text-white rounded-full w-8 h-8 flex items-center justify-center"
+                >
+                  ✕
+                </button>
+
+                <iframe
+                  src={previewUrl}
+                  className="w-full h-full border-none"
+                  title="PDF Preview"
+                />
+              </div>
+            </div>
           )}
 
           {/* Active PDF: Preview and Summary Display */}
@@ -749,7 +773,7 @@ export const PDFSummarizer: React.FC = () => {
       <div
         className={`${
           rightSidebarOpen ? "w-80" : "w-0"
-        } bg-white/10 backdrop-blur-md border-l border-white/30 transition-all duration-300 overflow-hidden`}
+        } bg-white/20 backdrop-blur-md border-l border-white/30 transition-all duration-300 overflow-hidden`}
       >
         <div className="p-4 h-full flex flex-col">
           {/* Sidebar Header */}
