@@ -30,6 +30,9 @@ export const PDFSummarizer: React.FC = () => {
   const [style, setStyle] = useState<string>("");
   const [generatingState, setGeneratingState] =
     useState<GeneratingState | null>(null);
+  const [regeneratingPdfId, setRegeneratingPdfId] = useState<string | null>(
+    null
+  );
   const [elapsedTime, setElapsedTime] = useState(0);
   const [dragActive, setDragActive] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
@@ -62,9 +65,23 @@ export const PDFSummarizer: React.FC = () => {
   }
   useEffect(() => {
     if (activePDF) {
+      if (pendingPDF) {
+        URL.revokeObjectURL(pendingPDF.previewUrl);
+      }
+
       loadSummaries(activePDF.id);
+      setCompletedSummary(null);
+      setPendingPDF(null);
+      setRegeneratingPdfId(null);
+      setStyle("");
     } else {
       setSummaries([]);
+      setCompletedSummary(null);
+
+      if (pendingPDF) {
+        URL.revokeObjectURL(pendingPDF.previewUrl);
+      }
+      setPendingPDF(null);
     }
   }, [activePDF]);
 
@@ -107,6 +124,15 @@ export const PDFSummarizer: React.FC = () => {
       const response = await pdfService.getSummariesByPDF(pdfId);
       setSummaries(response.data || []);
 
+      const latestCompleted = (response.data || [])
+        .filter((s: SummaryType) => s.status === "completed")
+        .sort(
+          (a: SummaryType, b: SummaryType) =>
+            new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+        )[0];
+
+      setCompletedSummary(latestCompleted || null);
+
       const processingSummary = (response.data || []).find(
         (s: SummaryType) => s.status === "processing"
       );
@@ -132,6 +158,60 @@ export const PDFSummarizer: React.FC = () => {
       setDragActive(true);
     } else if (e.type === "dragleave") {
       setDragActive(false);
+    }
+  };
+
+  {
+    /* Summary Generation: Regenerate for Existing PDF */
+  }
+  const handleRegenerateSummary = async () => {
+    if (!activePDF || !style) return;
+
+    setGenerateError(null);
+
+    try {
+      const generateResponse = await pdfService.generateSummary(
+        activePDF.id,
+        language,
+        style
+      );
+      const summary = generateResponse.data;
+
+      setGeneratingState({
+        pdfId: activePDF.id,
+        summaryId: summary.id,
+        startTime: Date.now(),
+      });
+
+      setRegeneratingPdfId(null);
+
+      const checkInterval = setInterval(async () => {
+        try {
+          const summariesResponse = await pdfService.getSummariesByPDF(
+            activePDF.id
+          );
+          const updatedSummaries = summariesResponse.data || [];
+          setSummaries(updatedSummaries);
+
+          const currentSummary = updatedSummaries.find(
+            (s: SummaryType) => s.id === summary.id
+          );
+          if (currentSummary && currentSummary.status !== "processing") {
+            setGeneratingState(null);
+            if (currentSummary.status === "completed") {
+              setCompletedSummary(currentSummary);
+            }
+            clearInterval(checkInterval);
+          }
+        } catch (error) {
+          console.error("Failed to check summary status", error);
+        }
+      }, 2000);
+
+      setTimeout(() => clearInterval(checkInterval), 60000);
+    } catch (error) {
+      setGenerateError("Failed to generate summary");
+      console.error(error);
     }
   };
 
@@ -299,6 +379,13 @@ export const PDFSummarizer: React.FC = () => {
   };
 
   {
+    /* Summary Actions: Select from Sidebar */
+  }
+  const handleSelectSummary = (summary: SummaryType) => {
+    setCompletedSummary(summary);
+  };
+
+  {
     /* PDF Actions: Delete */
   }
   const handleDeletePDF = async (id: string) => {
@@ -333,6 +420,19 @@ export const PDFSummarizer: React.FC = () => {
     setStyle("");
     setGeneratingState(null);
     setSummaries([]);
+    setRegeneratingPdfId(null);
+  };
+
+  {
+    /* UI: Generate New Summary for Same PDF */
+  }
+  const handleGenerateNewForPDF = () => {
+    if (!activePDF) return;
+
+    setCompletedSummary(null);
+    setStyle("");
+    setRegeneratingPdfId(activePDF.id);
+    setShowPreview(false);
   };
 
   {
@@ -399,13 +499,13 @@ export const PDFSummarizer: React.FC = () => {
             </button>
           </div>
 
-          {/* Create New Summary Button */}
+          {/* Add New PDF Button */}
           <Button
             variant="primary"
             onClick={handleCreateNew}
             className="w-full mb-4 text-sm"
           >
-            + Create New Summary
+            + Upload New PDF
           </Button>
 
           {/* PDF List */}
@@ -415,15 +515,15 @@ export const PDFSummarizer: React.FC = () => {
                 key={pdf.id}
                 className={`relative overflow-visible p-3 rounded-lg cursor-pointer transition-all ${
                   activePDF?.id === pdf.id
-                    ? "bg-yellow-200/55 text-gray-900 backdrop-blur-sm"
-                    : "bg-white/50 hover:bg-white/30 backdrop-blur-sm border border-white/50"
+                    ? "bg-yellow-200/55 text-gray-800 backdrop-blur-sm"
+                    : "bg-white/50 hover:bg-white/30 backdrop-blur-sm border border-white/50 text-gray-500 hover:text-gray-700"
                 }`}
                 onClick={() => setActivePDF(pdf)}
               >
                 <p className="text-sm font-medium truncate">
                   {pdf.original_name}
                 </p>
-                <p className="text-xs opacity-75 mt-1">
+                <p className="text-xs opacity-80 mt-1">
                   {new Date(pdf.uploaded_at).toLocaleDateString()}
                 </p>
                 <button
@@ -431,7 +531,7 @@ export const PDFSummarizer: React.FC = () => {
                     e.stopPropagation();
                     handleDeletePDF(pdf.id);
                   }}
-                  className="text-xs mt-2 text-red-700 hover:text-red-500"
+                  className="text-xs mt-2 text-gray-200 hover:text-red-500 bg-red-500/80 hover:bg-gray-200 rounded-full px-2"
                 >
                   Delete
                 </button>
@@ -476,8 +576,8 @@ export const PDFSummarizer: React.FC = () => {
                 ? activePDF.original_name
                 : "Upload Your PDF"}
             </h2>
-            {(activePDF || completedSummary) && (
-              <Button variant="secondary" onClick={handleCreateNew}>
+            {completedSummary && regeneratingPdfId !== activePDF?.id && (
+              <Button variant="secondary" onClick={handleGenerateNewForPDF}>
                 Generate New Summary
               </Button>
             )}
@@ -538,7 +638,7 @@ export const PDFSummarizer: React.FC = () => {
               {/* Pending PDF Card */}
               <Card className="p-6">
                 <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-lg font-semibold text-gray-800">
+                  <h3 className="text-lg font-semibold text-gray-100">
                     Selected PDF
                   </h3>
                   <button
@@ -550,8 +650,9 @@ export const PDFSummarizer: React.FC = () => {
                 </div>
 
                 <div
-                  onClick={() => {
-                    setPreviewUrl(pendingPDF.previewUrl);
+                  onClick={() => { //editing this section for preview pdf after upload
+                    const fileUrl = `${process.env.NEXT_PUBLIC_API_URL}/uploads/${pendingPDF.file}`;
+                    setPreviewUrl(fileUrl);
                     setShowPreview(true);
                   }}
                   className="bg-white/40 rounded-lg p-4 border border-white/50 mb-4 cursor-pointer hover:bg-white/50 transition"
@@ -564,7 +665,7 @@ export const PDFSummarizer: React.FC = () => {
                       Click to preview
                     </span>
                   </div>
-                  <p className="text-xs text-gray-500 mt-1">
+                  <p className="text-xs text-gray-700 mt-1">
                     {(pendingPDF.file.size / 1024 / 1024).toFixed(2)} MB
                   </p>
                 </div>
@@ -572,13 +673,13 @@ export const PDFSummarizer: React.FC = () => {
 
               {/* Generate Summary Card */}
               <Card className="p-6">
-                <h3 className="text-lg font-semibold mb-4 text-gray-800">
+                <h3 className="text-lg font-semibold mb-4 text-gray-100">
                   Generate Summary
                 </h3>
                 <div className="space-y-4">
                   {/* Style Selector */}
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                    <label className="block text-sm font-medium text-gray-200 mb-2">
                       Writing Style <span className="text-red-500">*</span>
                     </label>
                     <div className="flex gap-2">
@@ -588,8 +689,8 @@ export const PDFSummarizer: React.FC = () => {
                           onClick={() => setStyle(s)}
                           className={`px-6 py-2 rounded-xl transition-all ${
                             style === s
-                              ? "bg-blue-500/80 text-white backdrop-blur-sm"
-                              : "bg-white/30 text-gray-700 backdrop-blur-sm border border-white/50 hover:bg-white/50"
+                              ? "bg-yellow-200/70 backdrop-blur-sm text-gray-600"
+                              : "bg-white/25 text-white backdrop-blur-sm border border-white/50 hover:bg-white/50"
                           }`}
                         >
                           {s.charAt(0).toUpperCase() + s.slice(1)}
@@ -649,59 +750,82 @@ export const PDFSummarizer: React.FC = () => {
           {/* Active PDF: Preview and Summary Display */}
           {activePDF && !pendingPDF && (
             <>
-              {/* PDF Preview Toggle */}
-              <div
-                onClick={() => setShowPreview(true)}
-                className="cursor-pointer text-blue-600 hover:underline"
-              >
-                {activePDF.original_name}
-              </div>
-
-              {showPreview && (
+              {/* Regenerate Mode - Generate New Summary for Same PDF */}
+              {activePDF && regeneratingPdfId === activePDF.id && (
                 <Card className="p-6">
                   <div className="flex items-center justify-between mb-4">
-                    <h3 className="text-lg font-semibold text-gray-800">
-                      PDF Preview
+                    <h3 className="text-lg font-semibold text-gray-100">
+                      Generate New Summary
                     </h3>
-                    {!isLocked && (
-                      <button
-                        onClick={() => setShowPreview(false)}
-                        className="text-gray-500 hover:text-gray-700 text-sm"
-                      >
-                        Hide
-                      </button>
-                    )}
                   </div>
-                  <div className="bg-white/40 rounded-lg p-4 border border-white/50 mb-4">
-                    <span className="text-sm font-medium text-gray-700">
-                      {activePDF.original_name}
-                    </span>
-                    <p className="text-xs text-gray-500 mt-1">
+
+                  <div
+                    onClick={() => {
+                      setPreviewUrl(activePDF.file_path);
+                      setShowPreview(true);
+                    }}
+                    className="bg-white/40 rounded-lg p-4 border border-white/50 mb-4 cursor-pointer hover:bg-white/50 transition"
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm font-medium text-gray-700">
+                        {activePDF.original_name}
+                      </span>
+                      <span className="text-xs text-blue-600">
+                        Click to preview
+                      </span>
+                    </div>
+                    <p className="text-xs text-gray-700 mt-1">
                       {(activePDF.file_size / 1024 / 1024).toFixed(2)} MB
                     </p>
                   </div>
-                  <div className="bg-white/40 rounded-lg p-2 border border-white/50">
-                    <iframe
-                      src={activePDF.file_path}
-                      className="w-full h-64 rounded"
-                      title="PDF Preview"
-                    />
+
+                  <div className="space-y-4">
+                    {/* Style Selector */}
+                    <div>
+                      <label className="block text-sm font-medium text-gray-100 mb-2">
+                        Writing Style <span className="text-red-500">*</span>
+                      </label>
+                      <div className="flex gap-2">
+                        {["professional", "simple"].map((s) => (
+                          <button
+                            key={s}
+                            onClick={() => setStyle(s)}
+                            className={`px-6 py-2 rounded-xl transition-all ${
+                              style === s
+                                ? "bg-yellow-200/70 backdrop-blur-sm text-gray-600"
+                                : "bg-white/30 text-white backdrop-blur-sm border border-white/50 hover:bg-white/50"
+                            }`}
+                          >
+                            {s.charAt(0).toUpperCase() + s.slice(1)}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Generate Button */}
+                    <Button
+                      variant="primary"
+                      onClick={handleRegenerateSummary}
+                      disabled={!style || isGenerating}
+                      className="w-full"
+                    >
+                      {isGenerating
+                        ? `Generating... ${formatTime(elapsedTime)}`
+                        : "Generate Summary"}
+                    </Button>
+
+                    {/* Generation Error Alert */}
+                    {generateError && (
+                      <div className="p-3 rounded-lg bg-red-500/80 text-white text-sm">
+                        {generateError}
+                      </div>
+                    )}
                   </div>
                 </Card>
               )}
 
-              {/* Show Preview Button */}
-              {!showPreview && !isLocked && (
-                <Button
-                  variant="secondary"
-                  onClick={() => setShowPreview(true)}
-                >
-                  Show Preview
-                </Button>
-              )}
-
               {/* Generation Progress Card */}
-              {isGenerating && (
+              {isGenerating && generatingState?.pdfId === activePDF?.id && (
                 <Card className="p-6">
                   <div className="flex items-center justify-between">
                     <div>
@@ -731,7 +855,7 @@ export const PDFSummarizer: React.FC = () => {
               )}
 
               {/* Completed Summary Display */}
-              {completedSummary && (
+              {completedSummary && regeneratingPdfId !== activePDF?.id && (
                 <Card className="p-8 bg-white/5 backdrop-blur-md border border-white/10 rounded-3xl shadow-2xl">
                   <div className="flex items-center justify-between mb-6">
                     <h3 className="text-white text-2xl font-bold">Summary</h3>
@@ -772,7 +896,7 @@ export const PDFSummarizer: React.FC = () => {
       {/* Right Sidebar: Summary History */}
       <div
         className={`${
-          rightSidebarOpen ? "w-80" : "w-0"
+          rightSidebarOpen ? "w-full md:w-[420px] lg:w-[520px]" : "w-0"
         } bg-white/20 backdrop-blur-md border-l border-white/30 transition-all duration-300 overflow-hidden`}
       >
         <div className="p-4 h-full flex flex-col">
@@ -796,6 +920,7 @@ export const PDFSummarizer: React.FC = () => {
                 summaries={summaries}
                 onEdit={handleEditSummary}
                 onDelete={handleDeleteSummary}
+                activeSummaryId={completedSummary?.id || null}
               />
             ) : (
               <p className="text-sm text-gray-300 text-center">
