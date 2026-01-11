@@ -650,8 +650,9 @@ export const PDFSummarizer: React.FC = () => {
                 </div>
 
                 <div
-                  onClick={() => { //editing this section for preview pdf after upload
-                    const fileUrl = `${process.env.NEXT_PUBLIC_API_URL}/uploads/${pendingPDF.file}`;
+                  onClick={() => {
+                    //editing this section for preview pdf after upload
+                    const fileUrl = `${process.env.NEXT_PUBLIC_BACKEND_URL}/uploads/${pendingPDF.file}`;
                     setPreviewUrl(fileUrl);
                     setShowPreview(true);
                   }}
