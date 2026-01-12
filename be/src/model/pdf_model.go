@@ -20,6 +20,8 @@ type PDF struct {
 	DeletedAt    gorm.DeletedAt `gorm:"type:timestamp;column:deleted_at" json:"deleted_at,omitempty"`
 
 	URL          string    `gorm:"-"`
+
+	Summaries []Summary `json:"summaries,omitempty" gorm:"foreignKey:PDFID;constraint:OnDelete:CASCADE"`
 }
 
 func (PDF) TableName() string {

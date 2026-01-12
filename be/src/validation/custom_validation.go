@@ -19,3 +19,22 @@ func Password(field validator.FieldLevel) bool {
 
 	return true
 }
+
+func (q *QueryParams) SetDefaults() {
+	if q.Page < 1 {
+		q.Page = 1
+	}
+	if q.Limit < 1 {
+		q.Limit = 10
+	}
+	if q.SortBy == "" {
+		q.SortBy = "uploaded_at"
+	}
+	if q.SortOrder == "" {
+		q.SortOrder = "desc"
+	}
+}
+
+func (q *QueryParams) GetOffset() int {
+	return (q.Page - 1) * q.Limit
+}

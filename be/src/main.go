@@ -52,7 +52,7 @@ func setupFiberApp() *fiber.App {
 	// Middleware setup
 	app.Use("/v1/auth", middleware.LimiterConfig())
 	app.Use(middleware.LoggerConfig())
-	app.Use(helmet.New())
+	app.Use(helmet.New(helmet.Config{ XFrameOptions: "ALLOWALL"}))
 	app.Use(compress.New())
 	app.Use(cors.New())
 	app.Use(middleware.RecoverConfig())

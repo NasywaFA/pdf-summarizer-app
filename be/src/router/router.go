@@ -18,7 +18,6 @@ func Routes(app *fiber.App, db *gorm.DB) {
 	v1 := app.Group("/v1")
 
 	PDFRoutes(v1, pdfService, summaryService)
-
 	// TODO: add another routes here...
 
 	if !config.IsProd {

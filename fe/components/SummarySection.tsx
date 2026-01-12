@@ -126,7 +126,7 @@ export const SummarySection: React.FC<SummarySectionProps> = ({
                   <textarea
                     value={editContent}
                     onChange={(e) => setEditContent(e.target.value)}
-                    className="w-full h-40 p-3 rounded-lg bg-white/10 border border-white/20 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full h-40 p-3 rounded-lg bg-white/10 border border-white/20 focus:outline-none focus:ring-2 focus:ring-blue-500 text-white"
                   />
                   <div className="flex gap-2">
                     <Button variant="primary" onClick={handleSave}>
@@ -145,79 +145,88 @@ export const SummarySection: React.FC<SummarySectionProps> = ({
                     </p>
                   )}
 
-                  {summary.status === "failed" ||
-                  summary.status === "timeout" ? (
+                  {(summary.status === "failed" ||
+                    summary.status === "timeout") && (
                     <p className="text-sm text-red-400">
                       Failed to generate summary. Please try again.
                     </p>
-                  ) : summary.status === "completed" ? (
-                    isPlaceholder(summary.content) ? (
+                  )}
+
+                  {summary.status === "completed" &&
+                    !isPlaceholder(summary.content) && (
+                      <div className="bg-white/5 border border-white/10 rounded-lg p-4">
+                        <ReactMarkdown
+                          components={{
+                            h1: (props) => (
+                              <h1
+                                className="text-2xl font-bold text-white mb-3 mt-4"
+                                {...props}
+                              />
+                            ),
+                            h2: (props) => (
+                              <h2
+                                className="text-xl font-bold text-white mb-2 mt-3"
+                                {...props}
+                              />
+                            ),
+                            h3: (props) => (
+                              <h3
+                                className="text-lg font-bold text-white mb-2 mt-3"
+                                {...props}
+                              />
+                            ),
+                            p: (props) => (
+                              <p
+                                className="mb-2 leading-relaxed text-white/90 text-sm"
+                                {...props}
+                              />
+                            ),
+                            strong: (props) => (
+                              <strong
+                                className="text-yellow-300 font-bold"
+                                {...props}
+                              />
+                            ),
+                            em: (props) => (
+                              <em className="text-blue-300" {...props} />
+                            ),
+                            ul: (props) => (
+                              <ul
+                                className="list-disc ml-4 mb-2 space-y-1"
+                                {...props}
+                              />
+                            ),
+                            ol: (props) => (
+                              <ol
+                                className="list-decimal ml-4 mb-2 space-y-1"
+                                {...props}
+                              />
+                            ),
+                            li: (props) => (
+                              <li
+                                className="text-white/90 text-sm"
+                                {...props}
+                              />
+                            ),
+                            code: (props) => (
+                              <code
+                                className="bg-white/10 px-2 py-1 rounded text-yellow-300 text-xs"
+                                {...props}
+                              />
+                            ),
+                          }}
+                        >
+                          {summary.content}
+                        </ReactMarkdown>
+                      </div>
+                    )}
+
+                  {summary.status === "completed" &&
+                    isPlaceholder(summary.content) && (
                       <p className="text-sm italic text-gray-400">
                         Summary still contains placeholder content.
                       </p>
-                    ) : (
-                      <ReactMarkdown
-                        components={{
-                          h1: (props) => (
-                            <h1
-                              className="text-3xl font-bold text-white mb-4 mt-6"
-                              {...props}
-                            />
-                          ),
-                          h2: (props) => (
-                            <h2
-                              className="text-2xl font-bold text-white mb-3 mt-5"
-                              {...props}
-                            />
-                          ),
-                          h3: (props) => (
-                            <h3
-                              className="text-xl font-bold text-white mb-2 mt-4"
-                              {...props}
-                            />
-                          ),
-                          p: (props) => (
-                            <p
-                              className="mb-3 leading-relaxed text-white/90"
-                              {...props}
-                            />
-                          ),
-                          strong: (props) => (
-                            <strong
-                              className="text-yellow-300 font-bold"
-                              {...props}
-                            />
-                          ),
-                          em: (props) => (
-                            <em className="text-blue-300" {...props} />
-                          ),
-                          ul: (props) => (
-                            <ul
-                              className="list-disc ml-6 mb-4 space-y-1"
-                              {...props}
-                            />
-                          ),
-                          ol: (props) => (
-                            <ol
-                              className="list-decimal ml-6 mb-4 space-y-1"
-                              {...props}
-                            />
-                          ),
-                          li: (props) => (
-                            <li className="text-white/90" {...props} />
-                          ),
-                          code: (props) => (
-                            <code
-                              className="bg-white/10 px-2 py-1 rounded text-yellow-300"
-                              {...props}
-                            />
-                          ),
-                        }}
-                      >
-                        {summary.content}
-                      </ReactMarkdown>
-                    )
-                  ) : null}
+                    )}
 
                   <div className="flex gap-2">
                     <Button

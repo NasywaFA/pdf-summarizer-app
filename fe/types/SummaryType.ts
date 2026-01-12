@@ -29,3 +29,23 @@ export type APIResponse<T> = {
     message: string;
     data: T;
 };
+
+export interface PDFFilterParams {
+  search?: string;
+  sort?: string;
+  date_from?: string;
+  date_to?: string;
+  page?: number;
+  limit?: number;
+  status?: string;
+}
+
+export interface SummaryFilterParams {
+  search?: string;
+  sort?: string;
+  status?: string;
+  language?: string;
+  style?: string;
+  page?: number;
+  limit?: number;
+}

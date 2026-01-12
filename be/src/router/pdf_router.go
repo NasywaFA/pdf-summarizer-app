@@ -17,8 +17,8 @@ func PDFRoutes(v1 fiber.Router, pdfService service.PDFService, summaryService se
 	pdfs.Get("/:id", pdfController.GetPDF)
 	pdfs.Delete("/:id", pdfController.DeletePDF)
 	pdfs.Post("/:id/generate", pdfController.GenerateSummary)
-	pdfs.Get("/:id/summaries", pdfController.GetSummaries)	
-	
+	pdfs.Get("/:id/summaries", pdfController.GetSummaries)
+
 	summary := v1.Group("/summary")
 
 	summary.Get("/:id", pdfController.GetSummaryByID)

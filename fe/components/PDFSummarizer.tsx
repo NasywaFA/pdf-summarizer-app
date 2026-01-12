@@ -4,9 +4,16 @@ import React, { useState, useEffect } from "react";
 import { pdfService } from "@/services/pdfService";
 import { PDF, SummaryType } from "@/types/SummaryType";
 import LanguageSwitch, { Language } from "./LanguageSwitch";
-import { SummarySection } from "./SummarySection";
+import { PDFHistory } from "./PDFHistory";
+import { SummaryHistory } from "./SummaryHistory";
 import { Card } from "./ui/Card";
 import { Button } from "./ui/Button";
+import ReactMarkdown from "react-markdown";
+import {
+  validatePDFFile,
+  formatFileSize,
+  getMaxFileSizeFormatted,
+} from "@/utils/pdfValidation";
 
 interface PendingPDF {
   file: File;
@@ -242,13 +249,15 @@ export const PDFSummarizer: React.FC = () => {
   {
     /* File Upload: Validate and Set Pending PDF */
   }
-  const handleFileSelect = (file: File) => {
+  const handleFileSelect = async (file: File) => {
     setUploadError(null);
     setShowPreview(false);
     setStyle("");
 
-    if (file.type !== "application/pdf") {
-      setUploadError("Please upload a PDF file");
+    const validationResult = await validatePDFFile(file);
+
+    if (!validationResult.isValid) {
+      setUploadError(validationResult.error || "Invalid file");
       return;
     }
 
@@ -283,12 +292,16 @@ export const PDFSummarizer: React.FC = () => {
     setUploadError(null);
 
     try {
-      const uploadResponse = await pdfService.uploadPDF(
-        pendingPDF.file,
-        language,
-        style
-      );
-      const uploadedPDF = uploadResponse.data;
+      const uploadResponse = await pdfService.uploadPDF(pendingPDF.file);
+
+      console.log("Upload Response:", uploadResponse);
+
+      const uploadedPDF = uploadResponse.data || uploadResponse;
+
+      if (!uploadedPDF || !uploadedPDF.id) {
+        console.error("Invalid upload response:", uploadResponse);
+        throw new Error("Upload failed: Invalid response from server");
+      }
 
       await loadPDFs();
       setActivePDF(uploadedPDF);
@@ -299,7 +312,15 @@ export const PDFSummarizer: React.FC = () => {
         language,
         style
       );
-      const summary = generateResponse.data;
+
+      console.log("Generate Response:", generateResponse);
+
+      const summary = generateResponse.data || generateResponse;
+
+      if (!summary || !summary.id) {
+        console.error("Invalid generate response:", generateResponse);
+        throw new Error("Generate failed: Invalid response from server");
+      }
 
       setGeneratingState({
         pdfId: uploadedPDF.id,
@@ -334,8 +355,10 @@ export const PDFSummarizer: React.FC = () => {
 
       setTimeout(() => clearInterval(checkInterval), 60000);
     } catch (error) {
-      setGenerateError("Failed to generate summary");
-      console.error(error);
+      console.error("Generate error:", error);
+      setGenerateError(
+        error instanceof Error ? error.message : "Failed to generate summary"
+      );
     }
   };
 
@@ -481,80 +504,15 @@ export const PDFSummarizer: React.FC = () => {
 
   return (
     <div className="flex h-screen">
-      {/* Left Sidebar: PDF History */}
-      <div
-        className={`${
-          leftSidebarOpen ? "w-64" : "w-0"
-        } bg-white/20 backdrop-blur-md border-r border-white/30 transition-all duration-300 overflow-hidden`}
-      >
-        <div className="p-4 h-full flex flex-col">
-          {/* Sidebar Header with Create New Button */}
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-lg font-semibold text-gray-200">PDF History</h2>
-            <button
-              onClick={() => setLeftSidebarOpen(false)}
-              className="text-gray-200 hover:text-gray-400 p-1"
-            >
-              ◀
-            </button>
-          </div>
-
-          {/* Add New PDF Button */}
-          <Button
-            variant="primary"
-            onClick={handleCreateNew}
-            className="w-full mb-4 text-sm"
-          >
-            + Upload New PDF
-          </Button>
-
-          {/* PDF List */}
-          <div className="space-y-2 overflow-y-auto flex-1">
-            {pdfs.map((pdf) => (
-              <div
-                key={pdf.id}
-                className={`relative overflow-visible p-3 rounded-lg cursor-pointer transition-all ${
-                  activePDF?.id === pdf.id
-                    ? "bg-yellow-200/55 text-gray-800 backdrop-blur-sm"
-                    : "bg-white/50 hover:bg-white/30 backdrop-blur-sm border border-white/50 text-gray-500 hover:text-gray-700"
-                }`}
-                onClick={() => setActivePDF(pdf)}
-              >
-                <p className="text-sm font-medium truncate">
-                  {pdf.original_name}
-                </p>
-                <p className="text-xs opacity-80 mt-1">
-                  {new Date(pdf.uploaded_at).toLocaleDateString()}
-                </p>
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    handleDeletePDF(pdf.id);
-                  }}
-                  className="text-xs mt-2 text-gray-200 hover:text-red-500 bg-red-500/80 hover:bg-gray-200 rounded-full px-2"
-                >
-                  Delete
-                </button>
-              </div>
-            ))}
-            {pdfs.length === 0 && (
-              <p className="text-sm text-gray-500 text-center">
-                No PDFs uploaded yet
-              </p>
-            )}
-          </div>
-        </div>
-      </div>
-
-      {/* Left Sidebar Collapse Toggle Button */}
-      {!leftSidebarOpen && (
-        <button
-          onClick={() => setLeftSidebarOpen(true)}
-          className="fixed left-0 top-14.5 translate-y-1/2 bg-white/30 backdrop-blur-md border border-white/50 p-2 rounded-r-lg hover:bg-white/50 z-50"
-        >
-          ▶
-        </button>
-      )}
+      {/* Left Sidebar */}
+      <PDFHistory
+        isOpen={leftSidebarOpen}
+        onToggle={setLeftSidebarOpen}
+        activePDF={activePDF}
+        onSelectPDF={setActivePDF}
+        onDeletePDF={handleDeletePDF}
+        onCreateNew={handleCreateNew}
+      />
 
       {/* Main Content Area */}
       <div className="flex-1 p-6 overflow-y-auto">
@@ -620,7 +578,9 @@ export const PDFSummarizer: React.FC = () => {
                       Browse Files
                     </Button>
                   </div>
-                  <p className="text-sm text-gray-800">PDF files only</p>
+                  <p className="text-sm text-gray-700">
+                    PDF files only (Max: {getMaxFileSizeFormatted()})
+                  </p>
                 </div>
               </div>
               {/* Upload Error Alert */}
@@ -651,9 +611,7 @@ export const PDFSummarizer: React.FC = () => {
 
                 <div
                   onClick={() => {
-                    //editing this section for preview pdf after upload
-                    const fileUrl = `${process.env.NEXT_PUBLIC_BACKEND_URL}/uploads/${pendingPDF.file}`;
-                    setPreviewUrl(fileUrl);
+                    setPreviewUrl(pendingPDF.previewUrl);
                     setShowPreview(true);
                   }}
                   className="bg-white/40 rounded-lg p-4 border border-white/50 mb-4 cursor-pointer hover:bg-white/50 transition"
@@ -877,9 +835,66 @@ export const PDFSummarizer: React.FC = () => {
                   </div>
 
                   <div className="bg-white/5 border-2 border-white/10 rounded-2xl p-6 mb-4 text-white/90 prose prose-invert prose-lg max-w-none">
-                    <div className="whitespace-pre-wrap">
+                    <ReactMarkdown
+                      components={{
+                        h1: (props) => (
+                          <h1
+                            className="text-3xl font-bold text-white mb-4 mt-6"
+                            {...props}
+                          />
+                        ),
+                        h2: (props) => (
+                          <h2
+                            className="text-2xl font-bold text-white mb-3 mt-5"
+                            {...props}
+                          />
+                        ),
+                        h3: (props) => (
+                          <h3
+                            className="text-xl font-bold text-white mb-2 mt-4"
+                            {...props}
+                          />
+                        ),
+                        p: (props) => (
+                          <p
+                            className="mb-3 leading-relaxed text-white/90"
+                            {...props}
+                          />
+                        ),
+                        strong: (props) => (
+                          <strong
+                            className="text-yellow-300 font-bold"
+                            {...props}
+                          />
+                        ),
+                        em: (props) => (
+                          <em className="text-blue-300" {...props} />
+                        ),
+                        ul: (props) => (
+                          <ul
+                            className="list-disc ml-6 mb-4 space-y-1"
+                            {...props}
+                          />
+                        ),
+                        ol: (props) => (
+                          <ol
+                            className="list-decimal ml-6 mb-4 space-y-1"
+                            {...props}
+                          />
+                        ),
+                        li: (props) => (
+                          <li className="text-white/90" {...props} />
+                        ),
+                        code: (props) => (
+                          <code
+                            className="bg-white/10 px-2 py-1 rounded text-yellow-300"
+                            {...props}
+                          />
+                        ),
+                      }}
+                    >
                       {completedSummary.content}
-                    </div>
+                    </ReactMarkdown>
                   </div>
 
                   <div className="mt-2 text-xs text-white/50">
@@ -894,53 +909,18 @@ export const PDFSummarizer: React.FC = () => {
         </div>
       </div>
 
-      {/* Right Sidebar: Summary History */}
-      <div
-        className={`${
-          rightSidebarOpen ? "w-full md:w-[420px] lg:w-[520px]" : "w-0"
-        } bg-white/20 backdrop-blur-md border-l border-white/30 transition-all duration-300 overflow-hidden`}
-      >
-        <div className="p-4 h-full flex flex-col">
-          {/* Sidebar Header */}
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-lg font-semibold text-gray-200">
-              Summary History
-            </h2>
-            <button
-              onClick={() => setRightSidebarOpen(false)}
-              className="text-gray-200 hover:text-gray-400 p-1"
-            >
-              ▶
-            </button>
-          </div>
-
-          {/* Summary List or Empty State */}
-          <div className="overflow-y-auto flex-1">
-            {activePDF ? (
-              <SummarySection
-                summaries={summaries}
-                onEdit={handleEditSummary}
-                onDelete={handleDeleteSummary}
-                activeSummaryId={completedSummary?.id || null}
-              />
-            ) : (
-              <p className="text-sm text-gray-300 text-center">
-                Select a PDF to view summaries
-              </p>
-            )}
-          </div>
-        </div>
-      </div>
-
-      {/* Right Sidebar Collapse Toggle Button */}
-      {!rightSidebarOpen && (
-        <button
-          onClick={() => setRightSidebarOpen(true)}
-          className="fixed right-0 top-14.5 translate-y-1/2 bg-white/30 backdrop-blur-md border border-white/50 p-2 rounded-l-lg hover:bg-white/50 z-50"
-        >
-          ◀
-        </button>
-      )}
+      {/* Right Sidebar */}
+      <SummaryHistory
+        isOpen={rightSidebarOpen}
+        onToggle={setRightSidebarOpen}
+        activePDF={activePDF}
+        summaries={summaries}
+        activeSummaryId={completedSummary?.id || null}
+        onSelectSummary={handleSelectSummary}
+        onEditSummary={handleEditSummary}
+        onDeleteSummary={handleDeleteSummary}
+        onReloadSummaries={() => activePDF && loadSummaries(activePDF.id)}
+      />
     </div>
   );
 };

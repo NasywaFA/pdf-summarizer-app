@@ -3,6 +3,8 @@ package service
 import (
 	"app/src/config"
 	"app/src/model"
+	"app/src/utils"
+	"app/src/validation"
 	"bytes"
 	"context"
 	"encoding/json"
@@ -11,6 +13,7 @@ import (
 	"mime/multipart"
 	"net/http"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/go-playground/validator/v10"
@@ -21,7 +24,7 @@ import (
 
 type SummaryService interface {
 	GetByID(ctx context.Context, id uuid.UUID) (*model.Summary, error)
-	GetAll(ctx context.Context, pdfID uuid.UUID) ([]model.Summary, error)
+	GetAll(ctx context.Context, pdfID uuid.UUID, params validation.QueryParams) ([]model.Summary, *model.PaginationMeta, error)
 	Create(ctx context.Context, pdfID uuid.UUID, language, style string) (*model.Summary, error)
 	Update(ctx context.Context, id uuid.UUID, content string) error
 	Delete(ctx context.Context, id uuid.UUID) error
@@ -36,7 +39,7 @@ type summaryService struct {
 
 func NewSummaryService(db *gorm.DB, validate *validator.Validate) SummaryService {
 	return &summaryService{
-		Log:      logrus.New(),
+		Log:      utils.Log,
 		DB:       db,
 		Validate: validate,
 	}
@@ -44,18 +47,75 @@ func NewSummaryService(db *gorm.DB, validate *validator.Validate) SummaryService
 
 func (s *summaryService) GetByID(ctx context.Context, id uuid.UUID) (*model.Summary, error) {
 	var summary model.Summary
-	if err := s.DB.WithContext(ctx).Where("id = ?", id).First(&summary).Error; err != nil {
+	if err := s.DB.WithContext(ctx).First(&summary, "id = ?", id).Error; err != nil {
 		return nil, err
 	}
 	return &summary, nil
 }
 
-func (s *summaryService) GetAll(ctx context.Context, pdfID uuid.UUID) ([]model.Summary, error) {
+func (s *summaryService) GetAll(ctx context.Context, pdfID uuid.UUID, params validation.QueryParams) ([]model.Summary, *model.PaginationMeta, error) {
 	var summaries []model.Summary
-	if err := s.DB.WithContext(ctx).Where("pdf_id = ?", pdfID).Order("created_at DESC").Find(&summaries).Error; err != nil {
-		return nil, err
+	var total int64
+
+	// defaults
+	if params.Page < 1 {
+		params.Page = 1
 	}
-	return summaries, nil
+	if params.Limit < 1 {
+		params.Limit = 10
+	}
+	if params.SortBy == "" {
+		params.SortBy = "created_at"
+	}
+	if params.SortOrder == "" {
+		params.SortOrder = "desc"
+	}
+
+	allowedSort := map[string]string{
+		"created_at": "created_at",
+		"updated_at": "updated_at",
+	}
+
+	sortField, ok := allowedSort[params.SortBy]
+	if !ok {
+		sortField = "created_at"
+	}
+
+	sortOrder := "DESC"
+	if params.SortOrder == "asc" {
+		sortOrder = "ASC"
+	}
+
+	query := s.DB.WithContext(ctx).Model(&model.Summary{}).
+		Where("pdf_id = ?", pdfID)
+
+	if params.Search != "" {
+		query = query.Where("content ILIKE ?", "%"+params.Search+"%")
+	}
+	if params.Status != "" {
+		query = query.Where("status = ?", params.Status)
+	}
+	if params.Language != "" {
+		query = query.Where("language = ?", params.Language)
+	}
+	if params.Style != "" {
+		query = query.Where("style = ?", params.Style)
+	}
+
+	if err := query.Count(&total).Error; err != nil {
+		return nil, nil, err
+	}
+
+	query = query.Order(fmt.Sprintf("%s %s", sortField, sortOrder)).
+		Limit(params.Limit).
+		Offset(params.GetOffset())
+
+	if err := query.Find(&summaries).Error; err != nil {
+		return nil, nil, err
+	}
+
+	meta := model.NewPaginationMeta(params.Page, params.Limit, total)
+	return summaries, &meta, nil
 }
 
 func (s *summaryService) Create(ctx context.Context, pdfID uuid.UUID, language, style string) (*model.Summary, error) {
@@ -77,11 +137,9 @@ func (s *summaryService) Create(ctx context.Context, pdfID uuid.UUID, language, 
 	}
 
 	if err := s.DB.WithContext(ctx).Create(summary).Error; err != nil {
-		s.createProcessingLog(ctx, "summary", summaryID, "generate", "failed", "Failed to create summary record", map[string]interface{}{"error": err.Error()})
-		return nil, fmt.Errorf("failed to create summary: %w", err)
+		s.failSummary(ctx, summaryID, "Failed to create summary record", err)
+		return nil, err
 	}
-
-	s.createProcessingLog(ctx, "summary", summaryID, "generate", "processing", "Summary record created, calling AI service", nil)
 
 	go s.callAIService(context.Background(), summary)
 
@@ -89,12 +147,13 @@ func (s *summaryService) Create(ctx context.Context, pdfID uuid.UUID, language, 
 }
 
 func (s *summaryService) Update(ctx context.Context, id uuid.UUID, content string) error {
-	updates := map[string]interface{}{
-		"content":   content,
-		"is_edited": true,
-	}
-
-	return s.DB.WithContext(ctx).Model(&model.Summary{}).Where("id = ?", id).Updates(updates).Error
+	return s.DB.WithContext(ctx).Model(&model.Summary{}).
+		Where("id = ?", id).
+		Updates(map[string]interface{}{
+			"content":    content,
+			"is_edited":  true,
+			"updated_at": time.Now(),
+		}).Error
 }
 
 func (s *summaryService) Delete(ctx context.Context, id uuid.UUID) error {
@@ -102,92 +161,139 @@ func (s *summaryService) Delete(ctx context.Context, id uuid.UUID) error {
 }
 
 func (s *summaryService) UpdateStatus(ctx context.Context, id uuid.UUID, status string, content string) error {
-	updates := map[string]interface{}{"status": status}
+	updates := map[string]interface{}{
+		"status":     status,
+		"updated_at": time.Now(),
+	}
 	if content != "" {
 		updates["content"] = content
 	}
-	return s.DB.WithContext(ctx).Model(&model.Summary{}).Where("id = ?", id).Updates(updates).Error
-}
 
-func (s *summaryService) getPDF(ctx context.Context, pdfID uuid.UUID) (*model.PDF, error) {
-	var pdf model.PDF
-	if err := s.DB.WithContext(ctx).First(&pdf, "id = ? AND deleted_at IS NULL", pdfID).Error; err != nil {
-		return nil, fmt.Errorf("pdf not found: %w", err)
-	}
-	return &pdf, nil
+	return s.DB.WithContext(ctx).Model(&model.Summary{}).
+		Where("id = ?", id).
+		Updates(updates).Error
 }
 
 func (s *summaryService) callAIService(ctx context.Context, summary *model.Summary) {
-    pdf := &model.PDF{}
-	if err := s.DB.First(pdf, "id = ?", summary.PDFID).Error; err != nil {
-		s.Log.Error("Failed to get PDF info:", err)
-		s.UpdateStatus(ctx, summary.ID, "failed", "")
+	start := time.Now()
+
+	pdf := &model.PDF{}
+	if err := s.DB.WithContext(ctx).First(pdf, "id = ?", summary.PDFID).Error; err != nil {
+		s.failSummary(ctx, summary.ID, "PDF not found", err)
 		return
 	}
 
-    body := &bytes.Buffer{}
-    writer := multipart.NewWriter(body)
+	body := &bytes.Buffer{}
+	writer := multipart.NewWriter(body)
+	_ = writer.WriteField("language", summary.Language)
+	_ = writer.WriteField("style", summary.Style)
 
-    writer.WriteField("language", summary.Language)
-    writer.WriteField("style", summary.Style)
-
-    pdfFile, err := os.Open(pdf.FilePath)
-    if err != nil {
-        s.Log.Error("Failed to open PDF file:", err)
-        s.UpdateStatus(ctx, summary.ID, "failed", "")
-        return
-    }
-    defer pdfFile.Close()
-
-    fw, err := writer.CreateFormFile("file", pdf.OriginalName)
-    if err != nil {
-        s.Log.Error("Failed to create form file:", err)
-        s.UpdateStatus(ctx, summary.ID, "failed", "")
-        return
-    }
-
-    if _, err := io.Copy(fw, pdfFile); err != nil {
-        s.Log.Error("Failed to copy PDF content:", err)
-        s.UpdateStatus(ctx, summary.ID, "failed", "")
-        return
-    }
-
-    writer.Close()
-
-    req, _ := http.NewRequest("POST", config.MLServiceURL+"/summarize", body)
-    req.Header.Set("Content-Type", writer.FormDataContentType())
-
-    client := &http.Client{}
-    resp, err := client.Do(req)
-    if err != nil {
-        s.Log.Error("AI service request failed:", err)
-        s.UpdateStatus(ctx, summary.ID, "failed", "")
-        return
-    }
-    defer resp.Body.Close()
-
-    respBody, err := io.ReadAll(resp.Body)
+	file, err := os.Open(pdf.FilePath)
 	if err != nil {
-		s.Log.Error("Failed to read AI response:", err)
-		s.UpdateStatus(ctx, summary.ID, "failed", "")
+		s.failSummary(ctx, summary.ID, "Failed to open PDF", err)
+		return
+	}
+	defer file.Close()
+
+	fw, err := writer.CreateFormFile("file", pdf.OriginalName)
+	if err != nil {
+		s.failSummary(ctx, summary.ID, "Failed to create form file", err)
+		return
+	}
+	if _, err := io.Copy(fw, file); err != nil {
+		s.failSummary(ctx, summary.ID, "Failed to copy PDF", err)
+		return
+	}
+	writer.Close()
+
+	req, err := http.NewRequest("POST", config.MLServiceURL+"/summarize", body)
+	if err != nil {
+		s.failSummary(ctx, summary.ID, "Failed to create request", err)
+		return
+	}
+	req.Header.Set("Content-Type", writer.FormDataContentType())
+
+	client := &http.Client{
+		Timeout: 2 * time.Minute,
+	}
+	resp, err := client.Do(req)
+
+	if err != nil {
+		s.failSummary(ctx, summary.ID, "AI request failed", err)
+		return
+	}
+	defer resp.Body.Close()
+
+	respBody, err := io.ReadAll(resp.Body)
+	if err != nil {
+		s.failSummary(ctx, summary.ID, "Failed to read AI response", err)
 		return
 	}
 
-	var parsed interface{}
+	if resp.StatusCode != 200 {
+		errMsg := strings.TrimSpace(string(respBody))
+		if errMsg == "" {
+			errMsg = fmt.Sprintf("AI returned status %d", resp.StatusCode)
+		}
+		s.failSummary(ctx, summary.ID, "AI service error", fmt.Errorf(errMsg))
+		return
+	}
+
+	var parsed map[string]interface{}
 	if err := json.Unmarshal(respBody, &parsed); err != nil {
-		s.Log.Error("Failed to parse AI response JSON:", err)
-		s.UpdateStatus(ctx, summary.ID, "failed", "")
+		s.failSummary(ctx, summary.ID, "Invalid AI JSON response", err)
 		return
 	}
 
-	cleanJSON, err := encodeJSONNoEscape(parsed)
-	if err != nil {
-		s.Log.Error("Failed to encode AI response:", err)
-		s.UpdateStatus(ctx, summary.ID, "failed", "")
+	var content string
+
+	if v, ok := parsed["content"]; ok {
+		content = fmt.Sprintf("%v", v)
+	} else if v, ok := parsed["summary"]; ok {
+		content = fmt.Sprintf("%v", v)
+	} else if v, ok := parsed["result"]; ok {
+		content = fmt.Sprintf("%v", v)
+	} else if data, ok := parsed["data"].(map[string]interface{}); ok {
+		if v, ok := data["content"]; ok {
+			content = fmt.Sprintf("%v", v)
+		} else if v, ok := data["summary"]; ok {
+			content = fmt.Sprintf("%v", v)
+		}
+	}
+
+	content = strings.TrimSpace(content)
+	if content == "" {
+		s.failSummary(ctx, summary.ID, "AI response missing or empty content", nil)
 		return
 	}
 
-	s.UpdateStatus(ctx, summary.ID, "completed", cleanJSON)
+	processingTime := time.Since(start).Milliseconds()
+
+	metadata := map[string]interface{}{
+		"processing_time_ms": processingTime,
+		"ai_model":           parsed["model"],
+	}
+
+	metadataJSON, _ := json.Marshal(metadata)
+
+	if err := s.DB.WithContext(ctx).Model(&model.Summary{}).
+		Where("id = ?", summary.ID).
+		Updates(map[string]interface{}{
+			"content":  content,
+			"metadata": string(metadataJSON),
+			"status":   "completed",
+		}).Error; err != nil {
+
+		s.createProcessingLog(ctx, "summary", summary.ID, "generate", "failed", "Failed to update summary", map[string]interface{}{
+			"error": err.Error(),
+		})
+		return
+	}
+
+	s.createProcessingLog(ctx, "summary", summary.ID, "generate", "completed", "Summary generated successfully", map[string]interface{}{
+		"content_length":     len(content),
+		"processing_time_ms": processingTime,
+	})
 }
 
 func (s *summaryService) failSummary(ctx context.Context, id uuid.UUID, msg string, err error) {
@@ -196,7 +302,15 @@ func (s *summaryService) failSummary(ctx context.Context, id uuid.UUID, msg stri
 		meta["error"] = err.Error()
 	}
 
-	_ = s.UpdateStatus(ctx, id, "failed", "")
+	metaJSON, _ := json.Marshal(meta)
+
+	_ = s.DB.WithContext(ctx).Model(&model.Summary{}).
+		Where("id = ?", id).
+		Updates(map[string]interface{}{
+			"status":   "failed",
+			"metadata": string(metaJSON),
+		}).Error
+
 	s.createProcessingLog(ctx, "summary", id, "generate", "failed", msg, meta)
 }
 
@@ -204,13 +318,11 @@ func encodeJSONNoEscape(v interface{}) (string, error) {
 	var buf bytes.Buffer
 	enc := json.NewEncoder(&buf)
 	enc.SetEscapeHTML(false)
-	err := enc.Encode(v)
-	return buf.String(), err
+	return buf.String(), enc.Encode(v)
 }
 
 func (s *summaryService) createProcessingLog(ctx context.Context, entityType string, entityID uuid.UUID, action, status, message string, metadata map[string]interface{}) {
 	var metaJSON *json.RawMessage
-
 	if metadata != nil {
 		b, _ := json.Marshal(metadata)
 		raw := json.RawMessage(b)
