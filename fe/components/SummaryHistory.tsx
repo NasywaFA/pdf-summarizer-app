@@ -40,11 +40,44 @@ export const SummaryHistory: React.FC<SummaryHistoryProps> = ({
   const [isLoading, setIsLoading] = useState(false);
 
   {
-    /* Load Filtered Summaries */
+    /* Check if any filter is active */
   }
-  const loadSummaries = async () => {
-    if (!activePDF) return;
+  const hasActiveFilters = !!(
+    searchQuery ||
+    statusFilter ||
+    languageFilter ||
+    styleFilter ||
+    sortBy !== "newest"
+  );
 
+  {
+    /* Reset filters when PDF changes */
+  }
+  useEffect(() => {
+    setSearchQuery("");
+    setSortBy("newest");
+    setStatusFilter("");
+    setLanguageFilter("");
+    setStyleFilter("");
+    setFilteredSummaries([]);
+  }, [activePDF?.id]);
+
+  {
+    /* Load filtered summaries when filters change */
+  }
+  useEffect(() => {
+    if (!activePDF) {
+      setFilteredSummaries([]);
+      return;
+    }
+
+    if (!hasActiveFilters) {
+      setFilteredSummaries(summaries);
+      return;
+    }
+
+    {/* Load filtered summaries from API */}
+  const fetchFiltered = async () => {
     setIsLoading(true);
     try {
       const response = await pdfService.getSummariesWithFilter(activePDF.id, {
@@ -54,49 +87,42 @@ export const SummaryHistory: React.FC<SummaryHistoryProps> = ({
         language: languageFilter,
         style: styleFilter,
       });
-      setFilteredSummaries(response.data || []);
+      
+      console.log("Filtered Response:", response);
+      
+      if (response.isSuccess) {
+        setFilteredSummaries(response.data || []);
+      } else {
+        console.error("Filter failed:", response.message);
+        setFilteredSummaries([]);
+      }
     } catch (error) {
       console.error("Failed to load summaries", error);
+      setFilteredSummaries([]);
     } finally {
       setIsLoading(false);
     }
   };
 
-  {
-    /* Reload when filters change */
-  }
-  useEffect(() => {
-    loadSummaries();
+    fetchFiltered();
   }, [
-    activePDF,
+    activePDF?.id,
     searchQuery,
     sortBy,
     statusFilter,
     languageFilter,
     styleFilter,
+    hasActiveFilters,
   ]);
 
   {
-    /* Use parent summaries if no filters active */
+    /* Update filtered summaries when parent summaries change (no filters) */
   }
   useEffect(() => {
-    if (
-      !searchQuery &&
-      !statusFilter &&
-      !languageFilter &&
-      !styleFilter &&
-      sortBy === "newest"
-    ) {
+    if (!hasActiveFilters && activePDF) {
       setFilteredSummaries(summaries);
     }
-  }, [
-    summaries,
-    searchQuery,
-    statusFilter,
-    languageFilter,
-    styleFilter,
-    sortBy,
-  ]);
+  }, [summaries, hasActiveFilters, activePDF]);
 
   {
     /* Export Handler */
@@ -126,15 +152,15 @@ export const SummaryHistory: React.FC<SummaryHistoryProps> = ({
   return (
     <>
       {/* Sidebar */}
-    <div
+      <div
         className={`
-            fixed top-16 right-0 z-40
-            ${isOpen ? "w-full md:w-[420px] lg:w-[520px]" : "w-0"}
-            bg-white/20 backdrop-blur-md border-l border-white/30
-            transition-all duration-300 overflow-hidden
-            h-[calc(100vh-4rem)]
+          fixed top-16 right-0 z-40
+          ${isOpen ? "w-full md:w-[420px] lg:w-[520px]" : "w-0"}
+          bg-white/20 backdrop-blur-md border-l border-white/30
+          transition-all duration-300 overflow-hidden
+          h-[calc(100vh-4rem)]
         `}
-    >
+      >
         <div className="p-4 h-full flex flex-col">
           {/* Header */}
           <div className="flex items-center justify-between mb-4">
@@ -240,6 +266,22 @@ export const SummaryHistory: React.FC<SummaryHistoryProps> = ({
                 </select>
               </div>
 
+              {/* Clear Filters Button */}
+              {hasActiveFilters && (
+                <button
+                  onClick={() => {
+                    setSearchQuery("");
+                    setSortBy("newest");
+                    setStatusFilter("");
+                    setLanguageFilter("");
+                    setStyleFilter("");
+                  }}
+                  className="w-full mb-3 px-3 py-2 bg-red-500/80 hover:bg-red-600/80 text-white text-xs rounded-lg transition"
+                >
+                  Clear All Filters
+                </button>
+              )}
+
               {/* Export Buttons */}
               <div className="flex gap-2 mb-3">
                 <button
@@ -262,7 +304,7 @@ export const SummaryHistory: React.FC<SummaryHistoryProps> = ({
                   <p className="text-sm text-gray-400 text-center">
                     Loading...
                   </p>
-                ) : (
+                ) : filteredSummaries.length > 0 ? (
                   <SummarySection
                     summaries={filteredSummaries}
                     onEdit={onEditSummary}
@@ -270,6 +312,12 @@ export const SummaryHistory: React.FC<SummaryHistoryProps> = ({
                     onSelect={onSelectSummary}
                     activeSummaryId={activeSummaryId}
                   />
+                ) : (
+                  <p className="text-sm text-gray-400 text-center">
+                    {hasActiveFilters
+                      ? "No summaries match your filters"
+                      : "No summaries yet"}
+                  </p>
                 )}
               </div>
             </>

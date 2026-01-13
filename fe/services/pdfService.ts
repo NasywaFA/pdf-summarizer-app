@@ -188,51 +188,54 @@ export const pdfService = {
     return response.json();
   },
 
-  async getSummariesWithFilter(pdfId: string, params: SummaryFilterParams = {}) {
+  async getSummariesWithFilter(pdfId: string, params: {
+    search?: string;
+    sort?: string;
+    status?: string;
+    language?: string;
+    style?: string;
+    page?: number;
+    limit?: number;
+  } = {}) {
     const { sort, page = 1, limit = 10, ...restParams } = params;
-
-    const paginationMetadata = defaultPagination(page, limit);
+    
     const sortParams = sort ? mapSortToBackend(sort) : {};
-
+    
     const queryParams: Record<string, any> = {
       ...restParams,
       ...sortParams,
       page,
       limit,
     };
-
+  
     const queryString = buildQueryString(queryParams);
+    
     const url = `${BACKEND_URL}/v1/pdfs/${pdfId}/summaries${queryString ? `?${queryString}` : ""}`;
-
+  
     try {
       const response = await fetch(url);
-
+    
       if (!response.ok) {
         const json = await response.json();
         return {
           isSuccess: false,
           data: [],
-          paginationMetadata,
           message: json.message || "Failed to fetch summaries",
         };
       }
-
+    
       const json = await response.json();
-
-      paginationMetadata.totalResults = json.data.total;
-      paginationMetadata.totalPages = Math.ceil(json.data.total / limit);
-
+    
       return {
         isSuccess: true,
-        data: json.data.summaries || [],
-        paginationMetadata,
+        data: json.data || [],
+        meta: json.meta || {},
         message: json.message || "Success",
       };
     } catch (error) {
       return {
         isSuccess: false,
         data: [],
-        paginationMetadata,
         message: (error as Error).message || "Failed to fetch summaries",
       };
     }

@@ -29,8 +29,10 @@ export const PDFHistory: React.FC<PDFHistoryProps> = ({
   const [dateTo, setDateTo] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
-  const [totalItems, setTotalItems] = useState(0);
   const [isLoading, setIsLoading] = useState(false);
+
+  {/* Check if any filter is active */}
+  const hasActiveFilters = searchQuery || dateFrom || dateTo || sortBy !== "newest";
 
   {
     /* Load PDFs */
@@ -57,12 +59,10 @@ export const PDFHistory: React.FC<PDFHistoryProps> = ({
     }
   };
 
-  // Reload when filters change
   useEffect(() => {
     loadPDFs();
   }, [currentPage, searchQuery, sortBy, dateFrom, dateTo]);
 
-  // Export Handler
   const handleExport = async (format: "csv" | "json") => {
     try {
       await pdfService.exportPDFs(format, {
@@ -156,28 +156,52 @@ export const PDFHistory: React.FC<PDFHistoryProps> = ({
           </select>
 
           {/* Date Range */}
-          <div className="mb-3 space-y-2">
-            <input
-              type="date"
-              value={dateFrom}
-              onChange={(e) => {
-                setDateFrom(e.target.value);
-                setCurrentPage(1);
-              }}
-              placeholder="From date"
-              className="w-full px-3 py-2 bg-white/20 border border-white/30 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
-            <input
-              type="date"
-              value={dateTo}
-              onChange={(e) => {
-                setDateTo(e.target.value);
-                setCurrentPage(1);
-              }}
-              placeholder="To date"
-              className="w-full px-3 py-2 bg-white/20 border border-white/30 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
+          <div className="mb-3">
+            <div className="grid grid-cols-2 gap-3">
+              {/* From */}
+              <div className="flex flex-col space-y-1">
+                <label className="text-white text-xs">From</label>
+                <input
+                  type="date"
+                  value={dateFrom}
+                  onChange={(e) => {
+                    setDateFrom(e.target.value);
+                    setCurrentPage(1);
+                  }}
+                  className="w-full px-3 py-2 bg-white/20 border border-white/30 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+
+              {/* To */}
+              <div className="flex flex-col space-y-1">
+                <label className="text-white text-xs">To</label>
+                <input
+                  type="date"
+                  value={dateTo}
+                  onChange={(e) => {
+                    setDateTo(e.target.value);
+                    setCurrentPage(1);
+                  }}
+                  className="w-full px-3 py-2 bg-white/20 border border-white/30 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+            </div>
           </div>
+
+          {/* Clear Filters Button (optional) */}
+          {hasActiveFilters && (
+            <button
+              onClick={() => {
+                setSearchQuery("");
+                setSortBy("newest");
+                setDateFrom("");
+                setDateTo("");
+              }}
+              className="w-full mb-3 px-3 py-2 bg-red-500/80 hover:bg-red-600/80 text-white text-xs rounded-lg transition"
+            >
+              Clear All Filters
+            </button>
+          )}
 
           {/* Export Buttons */}
           <div className="flex gap-2 mb-3">
@@ -245,9 +269,8 @@ export const PDFHistory: React.FC<PDFHistoryProps> = ({
           </div>
 
           {/* Pagination */}
-
-          <div className="text-gray-900 text-sm">
-            DEBUG — totalPages: {totalPages}, currentPage: {currentPage}
+          <div className="text-base text-gray-900 mt-2">
+            totalPages: {totalPages} | currentPage: {currentPage}
           </div>
 
           {totalPages > 1 && (
