@@ -1,10 +1,10 @@
-// Configuration
 export const PDF_CONFIG = {
   MAX_FILE_SIZE: Number(process.env.NEXT_PUBLIC_MAX_FILE_SIZE) || 3 * 1024 * 1024,
   MIN_FILE_SIZE: Number(process.env.NEXT_PUBLIC_MIN_FILE_SIZE) || 1024,
+  MIN_CONTENT_SIZE: 5 * 1024,
   ALLOWED_MIME_TYPES: ['application/pdf'],
   ALLOWED_EXTENSIONS: ['.pdf'],
-  PDF_MAGIC_NUMBER: [0x25, 0x50, 0x44, 0x46], 
+  PDF_MAGIC_NUMBER: [0x25, 0x50, 0x44, 0x46],
 };
 
 export interface ValidationResult {
@@ -31,14 +31,14 @@ export const validateFileSize = (size: number): ValidationResult => {
   if (size < PDF_CONFIG.MIN_FILE_SIZE) {
     return {
       isValid: false,
-      error: `File is too small. Minimum size is ${PDF_CONFIG.MIN_FILE_SIZE / 1024} KB.`,
+      error: `File is too small. Minimum size is ${(PDF_CONFIG.MIN_FILE_SIZE / 1024).toFixed(0)} KB.`,
     };
   }
 
   if (size > PDF_CONFIG.MAX_FILE_SIZE) {
     return {
       isValid: false,
-      error: `File is too large. Maximum size is ${PDF_CONFIG.MAX_FILE_SIZE / 1024 / 1024} MB.`,
+      error: `File is too large. Maximum size is ${(PDF_CONFIG.MAX_FILE_SIZE / 1024 / 1024).toFixed(0)} MB.`,
     };
   }
 
@@ -60,11 +60,9 @@ export const validateMimeType = (type: string): ValidationResult => {
 // Validate PDF magic number (file signature)
 export const validatePDFMagicNumber = async (file: File): Promise<ValidationResult> => {
   try {
-    // Read first 4 bytes
     const arrayBuffer = await file.slice(0, 4).arrayBuffer();
     const bytes = new Uint8Array(arrayBuffer);
 
-    // Check if file starts with %PDF
     const isValidPDF = bytes.every((byte, index) => byte === PDF_CONFIG.PDF_MAGIC_NUMBER[index]);
 
     if (!isValidPDF) {
@@ -83,31 +81,39 @@ export const validatePDFMagicNumber = async (file: File): Promise<ValidationResu
   }
 };
 
-// Comprehensive PDF validation
+// Validate PDF content size (to reject near-empty PDFs)
+export const validatePDFContent = (size: number): ValidationResult => {
+  if (size < PDF_CONFIG.MIN_CONTENT_SIZE) {
+    return {
+      isValid: false,
+      error: `PDF appears to be empty or contains minimal content. Minimum size for content is ${(PDF_CONFIG.MIN_CONTENT_SIZE / 1024).toFixed(0)} KB.`,
+    };
+  }
+
+  return { isValid: true };
+};
+
+// Comprehensive PDF validation (runs all checks in sequence)
 export const validatePDFFile = async (file: File): Promise<ValidationResult> => {
   // 1. Check file extension
   const extensionResult = validateFileExtension(file.name);
-  if (!extensionResult.isValid) {
-    return extensionResult;
-  }
+  if (!extensionResult.isValid) return extensionResult;
 
-  // 2. Check file size
-  const sizeResult = validateFileSize(file.size);
-  if (!sizeResult.isValid) {
-    return sizeResult;
-  }
-
-  // 3. Check MIME type
+  // 2. Check MIME type
   const mimeResult = validateMimeType(file.type);
-  if (!mimeResult.isValid) {
-    return mimeResult;
-  }
+  if (!mimeResult.isValid) return mimeResult;
 
-  // 4. Check PDF magic number (actual file content)
+  // 3. Check file size (general bounds)
+  const sizeResult = validateFileSize(file.size);
+  if (!sizeResult.isValid) return sizeResult;
+
+  // 4. Check PDF content size (reject very small PDFs)
+  const contentResult = validatePDFContent(file.size);
+  if (!contentResult.isValid) return contentResult;
+
+  // 5. Check PDF magic number (actual file content)
   const magicNumberResult = await validatePDFMagicNumber(file);
-  if (!magicNumberResult.isValid) {
-    return magicNumberResult;
-  }
+  if (!magicNumberResult.isValid) return magicNumberResult;
 
   return { isValid: true };
 };

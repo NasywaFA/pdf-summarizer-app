@@ -32,6 +32,7 @@ export const PDFSummarizer: React.FC = () => {
   }
   const [pdfs, setPdfs] = useState<PDF[]>([]);
   const [activePDF, setActivePDF] = useState<PDF | null>(null);
+  const [isValidating, setIsValidating] = useState(false);
   const [summaries, setSummaries] = useState<SummaryType[]>([]);
   const [language, setLanguage] = useState<Language>("EN");
   const [style, setStyle] = useState<string>("");
@@ -251,22 +252,39 @@ export const PDFSummarizer: React.FC = () => {
   }
   const handleFileSelect = async (file: File) => {
     setUploadError(null);
+    setGenerateError(null);
     setShowPreview(false);
     setStyle("");
-
-    const validationResult = await validatePDFFile(file);
-
-    if (!validationResult.isValid) {
-      setUploadError(validationResult.error || "Invalid file");
-      return;
+    
+    if (pendingPDF) {
+      URL.revokeObjectURL(pendingPDF.previewUrl);
+      setPendingPDF(null);
     }
 
-    const url = URL.createObjectURL(file);
+    setIsValidating(true);
 
-    setPendingPDF({
-      file,
-      previewUrl: url,
-    });
+    try {
+      const validationResult = await validatePDFFile(file);
+
+      if (!validationResult.isValid) {
+        setUploadError(validationResult.error || "Invalid PDF file");
+        setIsValidating(false);
+        return;
+      }
+
+      const url = URL.createObjectURL(file);
+
+      setPendingPDF({
+        file,
+        previewUrl: url,
+      });
+
+    } catch (error) {
+      console.error("Validation error:", error);
+      setUploadError("Failed to validate file. Please try again.");
+    } finally {
+      setIsValidating(false);
+    }
   };
 
   {
@@ -279,7 +297,12 @@ export const PDFSummarizer: React.FC = () => {
     setPendingPDF(null);
     setStyle("");
     setUploadError(null);
+    setGenerateError(null);
     setShowPreview(false);
+    
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
+    }
   };
 
   {
@@ -379,7 +402,7 @@ export const PDFSummarizer: React.FC = () => {
     }
   };
 
-  {
+    {
     /* Summary Actions: Delete */
   }
   const handleDeleteSummary = async (id: string) => {
@@ -496,11 +519,12 @@ export const PDFSummarizer: React.FC = () => {
     return `${mins}:${secs.toString().padStart(2, "0")}`;
   };
 
-  {
+{
     /* Computed States */
   }
   const isGenerating = generatingState !== null;
-  const canGenerate = pendingPDF && style && !isGenerating;
+  const canGenerate = !!(pendingPDF && style && !isGenerating && !isValidating);
+  const canRegenerate = !!(activePDF && regeneratingPdfId && style && !isGenerating);
 
   return (
     <div className="flex h-screen">
@@ -552,36 +576,50 @@ export const PDFSummarizer: React.FC = () => {
                   dragActive
                     ? "border-blue-500 bg-blue-50/50"
                     : "border-gray-300 bg-white/20"
-                }`}
+                }${isValidating ? "opacity-50 pointer-events-none" : ""}`}
                 onDragEnter={handleDrag}
                 onDragLeave={handleDrag}
                 onDragOver={handleDrag}
                 onDrop={handleDrop}
               >
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  accept=".pdf"
-                  onChange={handleChange}
-                  className="hidden"
-                />
-                <div className="space-y-4">
-                  <div className="text-4xl">📄</div>
-                  <div>
-                    <p className="text-gray-700 mb-2">
-                      Drag and drop your PDF here, or
+                {isValidating ? (
+                  <div className="space-y-4">
+                    <div className="text-4xl animate-pulse">⏳</div>
+                    <p className="text-gray-700 font-medium">
+                      Validating PDF...
                     </p>
-                    <Button
-                      variant="secondary"
-                      onClick={() => fileInputRef.current?.click()}
-                    >
-                      Browse Files
-                    </Button>
+                    <p className="text-xs text-gray-500">
+                      Checking file format, size, and content
+                    </p>
                   </div>
-                  <p className="text-sm text-gray-700">
-                    PDF files only (Max: {getMaxFileSizeFormatted()})
-                  </p>
-                </div>
+                ) : (
+                  <>
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      accept=".pdf"
+                      onChange={handleChange}
+                      className="hidden"
+                    />
+                    <div className="space-y-4">
+                      <div className="text-4xl">📄</div>
+                      <div>
+                        <p className="text-gray-700 mb-2">
+                          Drag and drop your PDF here, or
+                        </p>
+                        <Button
+                          variant="secondary"
+                          onClick={() => fileInputRef.current?.click()}
+                        >
+                          Browse Files
+                        </Button>
+                      </div>
+                      <p className="text-sm text-gray-700">
+                        PDF files only (Max: {getMaxFileSizeFormatted()})
+                      </p>
+                    </div>
+                  </>
+                )}
               </div>
               {/* Upload Error Alert */}
               {uploadError && (
