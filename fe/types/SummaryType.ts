@@ -1,4 +1,5 @@
 export type PDF = {
+    URL: any;
     id: string;
     filename: string;
     original_name: string;

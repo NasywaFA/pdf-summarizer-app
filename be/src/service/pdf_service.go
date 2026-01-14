@@ -13,6 +13,7 @@ import (
 	"mime/multipart"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/go-playground/validator/v10"
@@ -53,6 +54,10 @@ func NewPDFService(db *gorm.DB, validate *validator.Validate) PDFService {
 	}
 }
 
+// normalizePathForURL converts OS-specific path separators to forward slashes for URLs
+func (s *pdfService) normalizePathForURL(path string) string {
+	return strings.ReplaceAll(path, "\\", "/")
+}
 
 func (s *pdfService) validatePDFFile(file multipart.File) error {
 	header := make([]byte, 4)
@@ -124,6 +129,7 @@ func (s *pdfService) Create(ctx context.Context, file *multipart.FileHeader) (*m
 
 	s.createProcessingLog(ctx, "pdf", pdfID, "upload", "started", "Starting PDF upload", nil)
 
+	// Validation: File Size
 	if err := s.validateFileSize(file.Size); err != nil {
 		s.createProcessingLog(ctx, "pdf", pdfID, "upload", "failed", "File size validation failed", map[string]interface{}{
 			"error": err.Error(),
@@ -132,6 +138,7 @@ func (s *pdfService) Create(ctx context.Context, file *multipart.FileHeader) (*m
 		return nil, fmt.Errorf("validation failed: %w", err)
 	}
 
+	// Validation: File Extension
 	if err := s.validateFileExtension(file.Filename); err != nil {
 		s.createProcessingLog(ctx, "pdf", pdfID, "upload", "failed", "File extension validation failed", map[string]interface{}{
 			"error":    err.Error(),
@@ -140,6 +147,7 @@ func (s *pdfService) Create(ctx context.Context, file *multipart.FileHeader) (*m
 		return nil, fmt.Errorf("validation failed: %w", err)
 	}
 
+	// Open file for validation
 	src, err := file.Open()
 	if err != nil {
 		s.createProcessingLog(ctx, "pdf", pdfID, "upload", "failed", "Failed to open file", map[string]interface{}{
@@ -149,6 +157,7 @@ func (s *pdfService) Create(ctx context.Context, file *multipart.FileHeader) (*m
 	}
 	defer src.Close()
 
+	// Validation: PDF Magic Number
 	if err := s.validatePDFFile(src); err != nil {
 		s.createProcessingLog(ctx, "pdf", pdfID, "upload", "failed", "PDF magic number validation failed", map[string]interface{}{
 			"error":    err.Error(),
@@ -157,6 +166,7 @@ func (s *pdfService) Create(ctx context.Context, file *multipart.FileHeader) (*m
 		return nil, fmt.Errorf("validation failed: %w", err)
 	}
 
+	// Create upload directory
 	uploadDir := "./uploads"
 	if err := os.MkdirAll(uploadDir, os.ModePerm); err != nil {
 		s.createProcessingLog(ctx, "pdf", pdfID, "upload", "failed", "Failed to create upload directory", map[string]interface{}{
@@ -165,11 +175,16 @@ func (s *pdfService) Create(ctx context.Context, file *multipart.FileHeader) (*m
 		return nil, fmt.Errorf("failed to create upload directory: %w", err)
 	}
 
+	// Generate filename and paths
 	sanitizedName := s.sanitizeFilename(file.Filename)
 	filename := fmt.Sprintf("%s_%s", pdfID.String(), sanitizedName)
 	filePath := filepath.Join(uploadDir, filename)
+	
+	// Normalize path for URL (convert backslashes to forward slashes)
+	normalizedPath := s.normalizePathForURL(filePath)
 	fileURL := fmt.Sprintf("/uploads/%s", filename)
 
+	// Reset file pointer
 	_, err = src.Seek(0, 0)
 	if err != nil {
 		s.createProcessingLog(ctx, "pdf", pdfID, "upload", "failed", "Failed to reset file pointer", map[string]interface{}{
@@ -178,6 +193,7 @@ func (s *pdfService) Create(ctx context.Context, file *multipart.FileHeader) (*m
 		return nil, fmt.Errorf("failed to reset file pointer: %w", err)
 	}
 
+	// Create destination file
 	dst, err := os.Create(filePath)
 	if err != nil {
 		s.createProcessingLog(ctx, "pdf", pdfID, "upload", "failed", "Failed to create destination file", map[string]interface{}{
@@ -187,6 +203,7 @@ func (s *pdfService) Create(ctx context.Context, file *multipart.FileHeader) (*m
 	}
 	defer dst.Close()
 
+	// Copy file content
 	written, err := io.Copy(dst, src)
 	if err != nil {
 		os.Remove(filePath)
@@ -196,6 +213,7 @@ func (s *pdfService) Create(ctx context.Context, file *multipart.FileHeader) (*m
 		return nil, fmt.Errorf("failed to save file: %w", err)
 	}
 
+	// Verify file size
 	if written != file.Size {
 		os.Remove(filePath)
 		s.createProcessingLog(ctx, "pdf", pdfID, "upload", "failed", "File size mismatch", map[string]interface{}{
@@ -205,11 +223,12 @@ func (s *pdfService) Create(ctx context.Context, file *multipart.FileHeader) (*m
 		return nil, fmt.Errorf("file size mismatch: expected %d, got %d", file.Size, written)
 	}
 
+	// Create PDF record
 	pdf := &model.PDF{
 		ID:           pdfID,
 		Filename:     filename,
 		OriginalName: file.Filename,
-		FilePath:     filePath,
+		FilePath:     normalizedPath, // ← Use normalized path
 		FileSize:     file.Size,
 		MimeType:     AllowedMimeType,
 		Status:       "pending",
@@ -218,6 +237,7 @@ func (s *pdfService) Create(ctx context.Context, file *multipart.FileHeader) (*m
 		URL:          fileURL,
 	}
 
+	// Save to database
 	if err := s.DB.WithContext(ctx).Create(pdf).Error; err != nil {
 		os.Remove(filePath)
 		s.createProcessingLog(ctx, "pdf", pdfID, "upload", "failed", "Failed to create PDF record in database", map[string]interface{}{
@@ -227,9 +247,10 @@ func (s *pdfService) Create(ctx context.Context, file *multipart.FileHeader) (*m
 	}
 
 	s.createProcessingLog(ctx, "pdf", pdfID, "upload", "success", "PDF uploaded successfully", map[string]interface{}{
-		"filename":      file.Filename,
-		"size":          file.Size,
+		"filename":       file.Filename,
+		"size":           file.Size,
 		"sanitized_name": sanitizedName,
+		"file_path":      normalizedPath,
 	})
 
 	return pdf, nil
@@ -313,7 +334,9 @@ func (s *pdfService) Delete(ctx context.Context, id uuid.UUID) error {
 		return err
 	}
 
-	if err := os.Remove(pdf.FilePath); err != nil {
+	// Convert normalized path back to OS-specific path for file deletion
+	osFilePath := strings.ReplaceAll(pdf.FilePath, "/", string(filepath.Separator))
+	if err := os.Remove(osFilePath); err != nil {
 		s.Log.WithError(err).Warn("Failed to delete file from disk")
 	}
 
