@@ -6,6 +6,7 @@ import { PDF } from "@/types/SummaryType";
 import { Button } from "./ui/Button";
 
 interface PDFHistoryProps {
+  pdfs: PDF[];
   isOpen: boolean;
   onToggle: (open: boolean) => void;
   activePDF: PDF | null;
@@ -15,6 +16,7 @@ interface PDFHistoryProps {
 }
 
 export const PDFHistory: React.FC<PDFHistoryProps> = ({
+  pdfs: parentPdfs,
   isOpen,
   onToggle,
   activePDF,
@@ -22,7 +24,7 @@ export const PDFHistory: React.FC<PDFHistoryProps> = ({
   onDeletePDF,
   onCreateNew,
 }) => {
-  const [pdfs, setPdfs] = useState<PDF[]>([]);
+const [pdfs, setPdfs] = useState<PDF[]>(parentPdfs);
   const [searchQuery, setSearchQuery] = useState("");
   const [sortBy, setSortBy] = useState("newest");
   const [dateFrom, setDateFrom] = useState("");
@@ -191,7 +193,7 @@ export const PDFHistory: React.FC<PDFHistoryProps> = ({
             </div>
           </div>
 
-          {/* Clear Filters Button (optional) */}
+          {/* Clear Filters Button */}
           {hasActiveFilters && (
             <button
               onClick={() => {

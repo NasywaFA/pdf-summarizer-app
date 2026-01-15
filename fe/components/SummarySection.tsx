@@ -110,7 +110,7 @@ export const SummarySection: React.FC<SummarySectionProps> = ({
                   <span className="text-xs text-gray-300 italic">(edited)</span>
                 )}
               </div>
-              <p className="text-xs text-gray-400">
+              <p className="text-xs text-gray-600">
                 {new Date(summary.created_at).toLocaleString()}
               </p>
             </div>

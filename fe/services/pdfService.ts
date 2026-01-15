@@ -194,6 +194,8 @@ export const pdfService = {
     status?: string;
     language?: string;
     style?: string;
+    date_from?: string;
+    date_to?: string;
     page?: number;
     limit?: number;
   } = {}) {

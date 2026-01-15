@@ -22,40 +22,55 @@ interface GeneratingState {
 }
 
 interface UploadProgress {
-  stage: 'validating' | 'uploading' | 'saving' | 'complete';
+  stage: "validating" | "uploading" | "saving" | "complete";
   message: string;
 }
 
 export const PDFSummarizer: React.FC = () => {
-  {/* State Management */}
+  {
+    /* State Management */
+  }
   const [pdfs, setPdfs] = useState<PDF[]>([]);
   const [activePDF, setActivePDF] = useState<PDF | null>(null);
-  const [uploadProgress, setUploadProgress] = useState<UploadProgress | null>(null);
+  const [uploadProgress, setUploadProgress] = useState<UploadProgress | null>(
+    null
+  );
   const [summaries, setSummaries] = useState<SummaryType[]>([]);
   const [language, setLanguage] = useState<Language>("EN");
   const [style, setStyle] = useState<string>("");
-  const [generatingState, setGeneratingState] = useState<GeneratingState | null>(null);
-  const [regeneratingPdfId, setRegeneratingPdfId] = useState<string | null>(null);
+  const [generatingState, setGeneratingState] =
+    useState<GeneratingState | null>(null);
+  const [regeneratingPdfId, setRegeneratingPdfId] = useState<string | null>(
+    null
+  );
   const [elapsedTime, setElapsedTime] = useState(0);
   const [dragActive, setDragActive] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [generateError, setGenerateError] = useState<string | null>(null);
   const [showPreview, setShowPreview] = useState(false);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
-  const [completedSummary, setCompletedSummary] = useState<SummaryType | null>(null);
+  const [completedSummary, setCompletedSummary] = useState<SummaryType | null>(
+    null
+  );
 
-  {/* Sidebar Collapse States */}
+  {
+    /* Sidebar Collapse States */
+  }
   const [leftSidebarOpen, setLeftSidebarOpen] = useState(true);
   const [rightSidebarOpen, setRightSidebarOpen] = useState(true);
 
   const fileInputRef = React.useRef<HTMLInputElement>(null);
 
-  {/* Load PDFs on Mount */}
+  {
+    /* Load PDFs on Mount */
+  }
   useEffect(() => {
     loadPDFs();
   }, []);
 
-  {/* Load Summaries when PDF is Selected */}
+  {
+    /* Load Summaries when PDF is Selected */
+  }
   useEffect(() => {
     if (activePDF) {
       loadSummaries(activePDF.id);
@@ -68,7 +83,9 @@ export const PDFSummarizer: React.FC = () => {
     }
   }, [activePDF]);
 
-  {/* Timer for Generation Progress */}
+  {
+    /* Timer for Generation Progress */
+  }
   useEffect(() => {
     let interval: NodeJS.Timeout | null = null;
     if (generatingState) {
@@ -85,7 +102,9 @@ export const PDFSummarizer: React.FC = () => {
     };
   }, [generatingState]);
 
-  {/* API: Load All PDFs */}
+  {
+    /* API: Load All PDFs */
+  }
   const loadPDFs = async () => {
     try {
       const response = await pdfService.getAllPDFs();
@@ -95,7 +114,9 @@ export const PDFSummarizer: React.FC = () => {
     }
   };
 
-  {/* API: Load Summaries for Selected PDF */}
+  {
+    /* API: Load Summaries for Selected PDF */
+  }
   const loadSummaries = async (pdfId: string) => {
     try {
       const response = await pdfService.getSummariesByPDF(pdfId);
@@ -125,7 +146,9 @@ export const PDFSummarizer: React.FC = () => {
     }
   };
 
-  {/* File Upload: Drag Handlers */}
+  {
+    /* File Upload: Drag Handlers */
+  }
   const handleDrag = (e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
@@ -136,7 +159,9 @@ export const PDFSummarizer: React.FC = () => {
     }
   };
 
-  {/* File Upload: Drop Handler */}
+  {
+    /* File Upload: Drop Handler */
+  }
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
@@ -147,7 +172,9 @@ export const PDFSummarizer: React.FC = () => {
     }
   };
 
-  {/* File Upload: Input Change Handler */}
+  {
+    /* File Upload: Input Change Handler */
+  }
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     e.preventDefault();
     if (e.target.files && e.target.files[0]) {
@@ -156,19 +183,22 @@ export const PDFSummarizer: React.FC = () => {
     setShowPreview(false);
   };
 
-  {/* Utility: Get File URL for Preview */}
+  {
+    /* Utility: Get File URL for Preview */
+  }
   const getFileURL = (pdf: PDF) => {
-    // If backend provides full URL, use it
-    if (pdf.URL && pdf.URL.startsWith('http')) {
+    if (pdf.URL && pdf.URL.startsWith("http")) {
       return pdf.URL;
     }
-    
-    // Otherwise construct URL from backend URL + filename
-    const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:5000';
+
+    const BACKEND_URL =
+      process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5000";
     return `${BACKEND_URL}/uploads/${pdf.filename}`;
   };
 
-  {/* File Upload: Validate, Upload to Storage, and Save to DB */}
+  {
+    /* File Upload: Validate, Upload to Storage, and Save to DB */
+  }
   const handleFileSelect = async (file: File) => {
     setUploadError(null);
     setGenerateError(null);
@@ -176,13 +206,12 @@ export const PDFSummarizer: React.FC = () => {
     setStyle("");
 
     try {
-      // Step 1: Validate PDF file
       setUploadProgress({
-        stage: 'validating',
-        message: 'Validating PDF file...'
+        stage: "validating",
+        message: "Validating PDF file...",
       });
 
-      await new Promise(resolve => setTimeout(resolve, 500)); // Small delay for UX
+      await new Promise((resolve) => setTimeout(resolve, 500));
 
       const validationResult = await validatePDFFile(file);
 
@@ -192,18 +221,16 @@ export const PDFSummarizer: React.FC = () => {
         return;
       }
 
-      // Step 2: Upload to storage
       setUploadProgress({
-        stage: 'uploading',
-        message: 'Uploading to storage...'
+        stage: "uploading",
+        message: "Uploading to storage...",
       });
 
-      await new Promise(resolve => setTimeout(resolve, 300));
+      await new Promise((resolve) => setTimeout(resolve, 300));
 
-      // Step 3: Save metadata to DB
       setUploadProgress({
-        stage: 'saving',
-        message: 'Saving to database...'
+        stage: "saving",
+        message: "Saving to database...",
       });
 
       const uploadResponse = await pdfService.uploadPDF(file);
@@ -213,34 +240,34 @@ export const PDFSummarizer: React.FC = () => {
         throw new Error("Upload failed: Invalid response from server");
       }
 
-      // Step 4: Complete
       setUploadProgress({
-        stage: 'complete',
-        message: 'Upload complete!'
+        stage: "complete",
+        message: "Upload complete!",
       });
 
-      await new Promise(resolve => setTimeout(resolve, 500));
+      await new Promise((resolve) => setTimeout(resolve, 500));
 
-      // Step 5: Reload PDF list and set as active
-      await loadPDFs();
+      setPdfs((prev) => [uploadedPDF, ...prev]);
       setActivePDF(uploadedPDF);
       setUploadProgress(null);
 
-      // Show success message
       if (typeof window !== "undefined" && (window as any).showToast) {
         (window as any).showToast("PDF uploaded successfully", "success");
       }
-
     } catch (error) {
       console.error("Upload error:", error);
       setUploadError(
-        error instanceof Error ? error.message : "Failed to upload PDF. Please try again."
+        error instanceof Error
+          ? error.message
+          : "Failed to upload PDF. Please try again."
       );
       setUploadProgress(null);
     }
   };
 
-  {/* File Upload: Clear Uploaded PDF */}
+  {
+    /* File Upload: Clear Uploaded PDF */
+  }
   const handleClearUploaded = () => {
     setActivePDF(null);
     setStyle("");
@@ -249,13 +276,15 @@ export const PDFSummarizer: React.FC = () => {
     setShowPreview(false);
     setCompletedSummary(null);
     setSummaries([]);
-    
+
     if (fileInputRef.current) {
       fileInputRef.current.value = "";
     }
   };
 
-  {/* Summary Generation: Generate for Uploaded PDF */}
+  {
+    /* Summary Generation: Generate for Uploaded PDF */
+  }
   const handleGenerate = async () => {
     if (!activePDF || !style) return;
 
@@ -281,7 +310,6 @@ export const PDFSummarizer: React.FC = () => {
         startTime: Date.now(),
       });
 
-      // Poll for summary completion
       const checkInterval = setInterval(async () => {
         try {
           const summariesResponse = await pdfService.getSummariesByPDF(
@@ -298,15 +326,22 @@ export const PDFSummarizer: React.FC = () => {
             if (currentSummary.status === "completed") {
               setCompletedSummary(currentSummary);
               if (typeof window !== "undefined" && (window as any).showToast) {
-                (window as any).showToast("Summary generated successfully", "success");
+                (window as any).showToast(
+                  "Summary generated successfully",
+                  "success"
+                );
               }
             } else if (currentSummary.status === "failed") {
-              // Check if error is due to no text content
-              const errorMessage = currentSummary.error_message || "Summary generation failed";
-              
-              if (errorMessage.toLowerCase().includes("no text") || 
-                  errorMessage.toLowerCase().includes("no extractable text")) {
-                setGenerateError("This PDF contains no readable text. Please upload a PDF with text content, not just images or scans.");
+              const errorMessage =
+                currentSummary.error_message || "Summary generation failed";
+
+              if (
+                errorMessage.toLowerCase().includes("no text") ||
+                errorMessage.toLowerCase().includes("no extractable text")
+              ) {
+                setGenerateError(
+                  "This PDF contains no readable text. Please upload a PDF with text content, not just images or scans."
+                );
               } else {
                 setGenerateError(errorMessage);
               }
@@ -321,19 +356,25 @@ export const PDFSummarizer: React.FC = () => {
       setTimeout(() => clearInterval(checkInterval), 60000);
     } catch (error) {
       console.error("Generate error:", error);
-      const errorMessage = error instanceof Error ? error.message : "Failed to generate summary";
-      
-      // Check if it's a "no text content" error
-      if (errorMessage.toLowerCase().includes("no text") || 
-          errorMessage.toLowerCase().includes("no extractable text")) {
-        setGenerateError("This PDF contains no readable text. Please upload a PDF with text content, not just images or scans.");
+      const errorMessage =
+        error instanceof Error ? error.message : "Failed to generate summary";
+
+      if (
+        errorMessage.toLowerCase().includes("no text") ||
+        errorMessage.toLowerCase().includes("no extractable text")
+      ) {
+        setGenerateError(
+          "This PDF contains no readable text. Please upload a PDF with text content, not just images or scans."
+        );
       } else {
         setGenerateError(errorMessage);
       }
     }
   };
 
-  {/* Summary Generation: Regenerate for Existing PDF */}
+  {
+    /* Summary Generation: Regenerate for Existing PDF */
+  }
   const handleRegenerateSummary = async () => {
     if (!activePDF || !style) return;
 
@@ -385,7 +426,9 @@ export const PDFSummarizer: React.FC = () => {
     }
   };
 
-  {/* Summary Actions: Edit */}
+  {
+    /* Summary Actions: Edit */
+  }
   const handleEditSummary = async (id: string, content: string) => {
     try {
       await pdfService.updateSummary(id, content);
@@ -400,7 +443,9 @@ export const PDFSummarizer: React.FC = () => {
     }
   };
 
-  {/* Summary Actions: Delete */}
+  {
+    /* Summary Actions: Delete */
+  }
   const handleDeleteSummary = async (id: string) => {
     if (!confirm("Are you sure you want to delete this summary?")) return;
 
@@ -420,32 +465,57 @@ export const PDFSummarizer: React.FC = () => {
     }
   };
 
-  {/* Summary Actions: Select from Sidebar */}
+  {
+    /* Summary Actions: Select from Sidebar */
+  }
   const handleSelectSummary = (summary: SummaryType) => {
     setCompletedSummary(summary);
   };
 
-  {/* PDF Actions: Delete */}
+  {
+    /* PDF Actions: Delete */
+  }
   const handleDeletePDF = async (id: string) => {
     if (!confirm("Are you sure you want to delete this PDF?")) return;
+
+    const previousPdfs = pdfs;
+    const wasActive = activePDF?.id === id;
+
+    setPdfs((prev) => prev.filter((p) => p.id !== id));
+
+    if (wasActive) {
+      setActivePDF(null);
+      setSummaries([]);
+      setCompletedSummary(null);
+    }
 
     try {
       await pdfService.deletePDF(id);
       if (typeof window !== "undefined" && (window as any).showToast) {
         (window as any).showToast("PDF deleted", "success");
       }
-      await loadPDFs();
-      if (activePDF?.id === id) {
-        setActivePDF(null);
-        setSummaries([]);
-        setCompletedSummary(null);
-      }
     } catch (error) {
       console.error("Failed to delete PDF", error);
+
+      setPdfs(previousPdfs);
+
+      if (wasActive && previousPdfs.find((p) => p.id === id)) {
+        const pdfToRestore = previousPdfs.find((p) => p.id === id);
+        setActivePDF(pdfToRestore || null);
+        if (pdfToRestore) {
+          loadSummaries(id);
+        }
+      }
+
+      if (typeof window !== "undefined" && (window as any).showToast) {
+        (window as any).showToast("Failed to delete PDF", "error");
+      }
     }
   };
 
-  {/* UI: Reset to Upload New PDF */}
+  {
+    /* UI: Reset to Upload New PDF */
+  }
   const handleCreateNew = () => {
     setActivePDF(null);
     setCompletedSummary(null);
@@ -458,7 +528,9 @@ export const PDFSummarizer: React.FC = () => {
     setGenerateError(null);
   };
 
-  {/* UI: Generate New Summary for Same PDF */}
+  {
+    /* UI: Generate New Summary for Same PDF */
+  }
   const handleGenerateNewForPDF = () => {
     if (!activePDF) return;
 
@@ -468,7 +540,9 @@ export const PDFSummarizer: React.FC = () => {
     setShowPreview(false);
   };
 
-  {/* Summary Actions: Copy to Clipboard */}
+  {
+    /* Summary Actions: Copy to Clipboard */
+  }
   const handleCopySummary = () => {
     if (completedSummary) {
       navigator.clipboard.writeText(completedSummary.content);
@@ -478,7 +552,9 @@ export const PDFSummarizer: React.FC = () => {
     }
   };
 
-  {/* Summary Actions: Download as Text File */}
+  {
+    /* Summary Actions: Download as Text File */
+  }
   const handleDownloadSummary = () => {
     if (completedSummary && activePDF) {
       const blob = new Blob([completedSummary.content], { type: "text/plain" });
@@ -493,24 +569,42 @@ export const PDFSummarizer: React.FC = () => {
     }
   };
 
-  {/* Utility: Format Elapsed Time */}
+  {
+    /* Utility: Format Elapsed Time */
+  }
   const formatTime = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
     const secs = seconds % 60;
     return `${mins}:${secs.toString().padStart(2, "0")}`;
   };
 
-  {/* Computed States */}
+  {
+    /* Computed States */
+  }
   const isUploading = uploadProgress !== null;
   const isGenerating = generatingState !== null;
-  const canGenerate = !!(activePDF && style && !isGenerating && !isUploading && !completedSummary && regeneratingPdfId !== activePDF?.id);
-  const canRegenerate = !!(activePDF && regeneratingPdfId && style && !isGenerating);
-  const showUploadedPDF = activePDF && !regeneratingPdfId && !completedSummary && !isGenerating;
+  const canGenerate = !!(
+    activePDF &&
+    style &&
+    !isGenerating &&
+    !isUploading &&
+    !completedSummary &&
+    regeneratingPdfId !== activePDF?.id
+  );
+  const canRegenerate = !!(
+    activePDF &&
+    regeneratingPdfId &&
+    style &&
+    !isGenerating
+  );
+  const showUploadedPDF =
+    activePDF && !regeneratingPdfId && !completedSummary && !isGenerating;
 
   return (
     <div className="flex h-screen">
       {/* Left Sidebar */}
       <PDFHistory
+        pdfs={pdfs}
         isOpen={leftSidebarOpen}
         onToggle={setLeftSidebarOpen}
         activePDF={activePDF}
@@ -562,66 +656,114 @@ export const PDFSummarizer: React.FC = () => {
                 {isUploading ? (
                   <div className="space-y-4">
                     <div className="flex items-center justify-center gap-3">
-                      {uploadProgress?.stage === 'validating' && (
+                      {uploadProgress?.stage === "validating" && (
                         <div className="text-4xl animate-bounce">🔍</div>
                       )}
-                      {uploadProgress?.stage === 'uploading' && (
+                      {uploadProgress?.stage === "uploading" && (
                         <div className="text-4xl animate-pulse">📤</div>
                       )}
-                      {uploadProgress?.stage === 'saving' && (
+                      {uploadProgress?.stage === "saving" && (
                         <div className="text-4xl animate-spin">💾</div>
                       )}
-                      {uploadProgress?.stage === 'complete' && (
+                      {uploadProgress?.stage === "complete" && (
                         <div className="text-4xl">✅</div>
                       )}
                     </div>
                     <p className="text-gray-700 font-medium text-lg">
                       {uploadProgress?.message}
                     </p>
-                    
+
                     {/* Progress Steps */}
                     <div className="flex justify-center items-center gap-2 mt-6">
-                      <div className={`w-3 h-3 rounded-full transition-all ${
-                        uploadProgress?.stage === 'validating' 
-                          ? 'bg-blue-500 animate-pulse' 
-                          : uploadProgress && ['uploading', 'saving', 'complete'].includes(uploadProgress.stage)
-                          ? 'bg-green-500'
-                          : 'bg-gray-300'
-                      }`}></div>
-                      <div className={`w-8 h-0.5 ${
-                        uploadProgress && ['uploading', 'saving', 'complete'].includes(uploadProgress.stage)
-                          ? 'bg-green-500'
-                          : 'bg-gray-300'
-                      }`}></div>
-                      <div className={`w-3 h-3 rounded-full transition-all ${
-                        uploadProgress?.stage === 'uploading'
-                          ? 'bg-blue-500 animate-pulse'
-                          : uploadProgress && ['saving', 'complete'].includes(uploadProgress.stage)
-                          ? 'bg-green-500'
-                          : 'bg-gray-300'
-                      }`}></div>
-                      <div className={`w-8 h-0.5 ${
-                        uploadProgress && ['saving', 'complete'].includes(uploadProgress.stage)
-                          ? 'bg-green-500'
-                          : 'bg-gray-300'
-                      }`}></div>
-                      <div className={`w-3 h-3 rounded-full transition-all ${
-                        uploadProgress?.stage === 'saving'
-                          ? 'bg-blue-500 animate-pulse'
-                          : uploadProgress?.stage === 'complete'
-                          ? 'bg-green-500'
-                          : 'bg-gray-300'
-                      }`}></div>
+                      <div
+                        className={`w-3 h-3 rounded-full transition-all ${
+                          uploadProgress?.stage === "validating"
+                            ? "bg-blue-500 animate-pulse"
+                            : uploadProgress &&
+                              ["uploading", "saving", "complete"].includes(
+                                uploadProgress.stage
+                              )
+                            ? "bg-green-500"
+                            : "bg-gray-300"
+                        }`}
+                      ></div>
+                      <div
+                        className={`w-8 h-0.5 ${
+                          uploadProgress &&
+                          ["uploading", "saving", "complete"].includes(
+                            uploadProgress.stage
+                          )
+                            ? "bg-green-500"
+                            : "bg-gray-300"
+                        }`}
+                      ></div>
+                      <div
+                        className={`w-3 h-3 rounded-full transition-all ${
+                          uploadProgress?.stage === "uploading"
+                            ? "bg-blue-500 animate-pulse"
+                            : uploadProgress &&
+                              ["saving", "complete"].includes(
+                                uploadProgress.stage
+                              )
+                            ? "bg-green-500"
+                            : "bg-gray-300"
+                        }`}
+                      ></div>
+                      <div
+                        className={`w-8 h-0.5 ${
+                          uploadProgress &&
+                          ["saving", "complete"].includes(uploadProgress.stage)
+                            ? "bg-green-500"
+                            : "bg-gray-300"
+                        }`}
+                      ></div>
+                      <div
+                        className={`w-3 h-3 rounded-full transition-all ${
+                          uploadProgress?.stage === "saving"
+                            ? "bg-blue-500 animate-pulse"
+                            : uploadProgress?.stage === "complete"
+                            ? "bg-green-500"
+                            : "bg-gray-300"
+                        }`}
+                      ></div>
                     </div>
 
                     <div className="text-xs text-gray-500 mt-2 flex justify-center gap-8">
-                      <span className={uploadProgress && ['validating', 'uploading', 'saving', 'complete'].includes(uploadProgress.stage) ? 'text-green-600 font-semibold' : ''}>
+                      <span
+                        className={
+                          uploadProgress &&
+                          [
+                            "validating",
+                            "uploading",
+                            "saving",
+                            "complete",
+                          ].includes(uploadProgress.stage)
+                            ? "text-green-600 font-semibold"
+                            : ""
+                        }
+                      >
                         Validate
                       </span>
-                      <span className={uploadProgress && ['uploading', 'saving', 'complete'].includes(uploadProgress.stage) ? 'text-green-600 font-semibold' : ''}>
+                      <span
+                        className={
+                          uploadProgress &&
+                          ["uploading", "saving", "complete"].includes(
+                            uploadProgress.stage
+                          )
+                            ? "text-green-600 font-semibold"
+                            : ""
+                        }
+                      >
                         Upload
                       </span>
-                      <span className={uploadProgress && ['saving', 'complete'].includes(uploadProgress.stage) ? 'text-green-600 font-semibold' : ''}>
+                      <span
+                        className={
+                          uploadProgress &&
+                          ["saving", "complete"].includes(uploadProgress.stage)
+                            ? "text-green-600 font-semibold"
+                            : ""
+                        }
+                      >
                         Save
                       </span>
                     </div>
@@ -694,12 +836,16 @@ export const PDFSummarizer: React.FC = () => {
                         {activePDF.original_name}
                       </span>
                       <p className="text-xs text-gray-700 mt-1">
-                        {(activePDF.file_size / 1024 / 1024).toFixed(2)} MB • 
-                        <span className={`ml-2 font-semibold ${
-                          activePDF.status === 'pending' ? 'text-yellow-600' :
-                          activePDF.status === 'success' ? 'text-green-600' :
-                          'text-gray-600'
-                        }`}>
+                        {(activePDF.file_size / 1024 / 1024).toFixed(2)} MB •
+                        <span
+                          className={`ml-2 font-semibold ${
+                            activePDF.status === "pending"
+                              ? "text-yellow-600"
+                              : activePDF.status === "success"
+                              ? "text-green-600"
+                              : "text-gray-600"
+                          }`}
+                        >
                           Status: {activePDF.status}
                         </span>
                       </p>
@@ -732,7 +878,9 @@ export const PDFSummarizer: React.FC = () => {
                             style === s
                               ? "bg-yellow-200/70 backdrop-blur-sm text-gray-600"
                               : "bg-white/25 text-white backdrop-blur-sm border border-white/50 hover:bg-white/50"
-                          } ${isGenerating ? 'opacity-50 cursor-not-allowed' : ''}`}
+                          } ${
+                            isGenerating ? "opacity-50 cursor-not-allowed" : ""
+                          }`}
                         >
                           {s.charAt(0).toUpperCase() + s.slice(1)}
                         </button>

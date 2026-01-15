@@ -42,5 +42,7 @@ type SummaryQueryParams struct {
 	Style     string `query:"style" validate:"omitempty"`
 	SortBy    string `query:"sort_by" validate:"omitempty,oneof=created_at updated_at"`
 	SortOrder string `query:"sort_order" validate:"omitempty,oneof=asc desc"`
+	DateFrom  string `query:"date_from" validate:"omitempty"`
+	DateTo    string `query:"date_to" validate:"omitempty"`
 	Export    string `query:"export" validate:"omitempty,oneof=csv json"`
 }

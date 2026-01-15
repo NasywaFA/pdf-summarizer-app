@@ -27,8 +27,8 @@ var pdfMagicNumbers = [][]byte{
 }
 
 const (
-	MaxFileSize     = 3 * 1024 * 1024 
-	MinFileSize     = 1024  
+	MaxFileSize     = 3 * 1024 * 1024
+	MinFileSize     = 1024
 	AllowedMimeType = "application/pdf"
 )
 
@@ -107,19 +107,19 @@ func (s *pdfService) validateFileExtension(filename string) error {
 
 func (s *pdfService) sanitizeFilename(filename string) string {
 	filename = filepath.Base(filename)
-	
+
 	safe := ""
 	for _, char := range filename {
-		if (char >= 'a' && char <= 'z') || 
-			(char >= 'A' && char <= 'Z') || 
-			(char >= '0' && char <= '9') || 
+		if (char >= 'a' && char <= 'z') ||
+			(char >= 'A' && char <= 'Z') ||
+			(char >= '0' && char <= '9') ||
 			char == '.' || char == '-' || char == '_' {
 			safe += string(char)
 		} else {
 			safe += "_"
 		}
 	}
-	
+
 	return safe
 }
 
@@ -172,7 +172,7 @@ func (s *pdfService) Create(ctx context.Context, file *multipart.FileHeader) (*m
 	sanitizedName := s.sanitizeFilename(file.Filename)
 	filename := fmt.Sprintf("%s_%s", pdfID.String(), sanitizedName)
 	filePath := filepath.Join(uploadDir, filename)
-	
+
 	normalizedPath := s.normalizePathForURL(filePath)
 	fileURL := fmt.Sprintf("/uploads/%s", filename)
 
@@ -218,7 +218,7 @@ func (s *pdfService) Create(ctx context.Context, file *multipart.FileHeader) (*m
 		FilePath:     normalizedPath,
 		FileSize:     file.Size,
 		MimeType:     AllowedMimeType,
-		Status:       "pending",
+		Status:       "completed",
 		UploadedAt:   time.Now(),
 		UpdatedAt:    time.Now(),
 		URL:          fileURL,

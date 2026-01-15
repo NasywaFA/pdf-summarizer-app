@@ -36,6 +36,8 @@ export const SummaryHistory: React.FC<SummaryHistoryProps> = ({
   const [statusFilter, setStatusFilter] = useState("");
   const [languageFilter, setLanguageFilter] = useState("");
   const [styleFilter, setStyleFilter] = useState("");
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
   const [filteredSummaries, setFilteredSummaries] = useState<SummaryType[]>([]);
   const [isLoading, setIsLoading] = useState(false);
 
@@ -47,6 +49,8 @@ export const SummaryHistory: React.FC<SummaryHistoryProps> = ({
     statusFilter ||
     languageFilter ||
     styleFilter ||
+    dateFrom ||
+    dateTo ||
     sortBy !== "newest"
   );
 
@@ -59,6 +63,8 @@ export const SummaryHistory: React.FC<SummaryHistoryProps> = ({
     setStatusFilter("");
     setLanguageFilter("");
     setStyleFilter("");
+    setDateFrom("");
+    setDateTo("");
     setFilteredSummaries([]);
   }, [activePDF?.id]);
 
@@ -76,33 +82,37 @@ export const SummaryHistory: React.FC<SummaryHistoryProps> = ({
       return;
     }
 
-    {/* Load filtered summaries from API */}
-  const fetchFiltered = async () => {
-    setIsLoading(true);
-    try {
-      const response = await pdfService.getSummariesWithFilter(activePDF.id, {
-        search: searchQuery,
-        sort: sortBy,
-        status: statusFilter,
-        language: languageFilter,
-        style: styleFilter,
-      });
-      
-      console.log("Filtered Response:", response);
-      
-      if (response.isSuccess) {
-        setFilteredSummaries(response.data || []);
-      } else {
-        console.error("Filter failed:", response.message);
-        setFilteredSummaries([]);
-      }
-    } catch (error) {
-      console.error("Failed to load summaries", error);
-      setFilteredSummaries([]);
-    } finally {
-      setIsLoading(false);
+    {
+      /* Load filtered summaries from API */
     }
-  };
+    const fetchFiltered = async () => {
+      setIsLoading(true);
+      try {
+        const response = await pdfService.getSummariesWithFilter(activePDF.id, {
+          search: searchQuery,
+          sort: sortBy,
+          status: statusFilter,
+          language: languageFilter,
+          style: styleFilter,
+          date_from: dateFrom,
+          date_to: dateTo,
+        });
+
+        console.log("Filtered Response:", response);
+
+        if (response.isSuccess) {
+          setFilteredSummaries(response.data || []);
+        } else {
+          console.error("Filter failed:", response.message);
+          setFilteredSummaries([]);
+        }
+      } catch (error) {
+        console.error("Failed to load summaries", error);
+        setFilteredSummaries([]);
+      } finally {
+        setIsLoading(false);
+      }
+    };
 
     fetchFiltered();
   }, [
@@ -112,6 +122,8 @@ export const SummaryHistory: React.FC<SummaryHistoryProps> = ({
     statusFilter,
     languageFilter,
     styleFilter,
+    dateFrom,
+    dateTo,
     hasActiveFilters,
   ]);
 
@@ -137,6 +149,8 @@ export const SummaryHistory: React.FC<SummaryHistoryProps> = ({
         status: statusFilter,
         language: languageFilter,
         style: styleFilter,
+        date_from: dateFrom,
+        date_to: dateTo,
       });
       if (typeof window !== "undefined" && (window as any).showToast) {
         (window as any).showToast(
@@ -266,6 +280,33 @@ export const SummaryHistory: React.FC<SummaryHistoryProps> = ({
                 </select>
               </div>
 
+              {/* Date Range */}
+              <div className="mb-3">
+                <div className="grid grid-cols-2 gap-3">
+                  {/* From */}
+                  <div className="flex flex-col space-y-1">
+                    <label className="text-white text-xs">From</label>
+                    <input
+                      type="date"
+                      value={dateFrom}
+                      onChange={(e) => setDateFrom(e.target.value)}
+                      className="w-full px-3 py-2 bg-white/20 border border-white/30 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+
+                  {/* To */}
+                  <div className="flex flex-col space-y-1">
+                    <label className="text-white text-xs">To</label>
+                    <input
+                      type="date"
+                      value={dateTo}
+                      onChange={(e) => setDateTo(e.target.value)}
+                      className="w-full px-3 py-2 bg-white/20 border border-white/30 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+                </div>
+              </div>
+
               {/* Clear Filters Button */}
               {hasActiveFilters && (
                 <button
@@ -275,6 +316,8 @@ export const SummaryHistory: React.FC<SummaryHistoryProps> = ({
                     setStatusFilter("");
                     setLanguageFilter("");
                     setStyleFilter("");
+                    setDateFrom("");
+                    setDateTo("");
                   }}
                   className="w-full mb-3 px-3 py-2 bg-red-500/80 hover:bg-red-600/80 text-white text-xs rounded-lg transition"
                 >
