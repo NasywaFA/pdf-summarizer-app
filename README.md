@@ -285,8 +285,3 @@ This project is licensed under the MIT License.
 
 Made by [NasywaFA](https://github.com/NasywaFA)
 
----
-
-# Repository
-
-https://github.com/NasywaFA/pdf-summarizer-app
