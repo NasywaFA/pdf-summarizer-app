@@ -206,6 +206,7 @@ export const PDFSummarizer: React.FC = () => {
     setStyle("");
 
     try {
+      // validating
       setUploadProgress({
         stage: "validating",
         message: "Validating PDF file...",
@@ -221,6 +222,7 @@ export const PDFSummarizer: React.FC = () => {
         return;
       }
 
+      // uploading to DB
       setUploadProgress({
         stage: "uploading",
         message: "Uploading to storage...",
@@ -228,11 +230,13 @@ export const PDFSummarizer: React.FC = () => {
 
       await new Promise((resolve) => setTimeout(resolve, 300));
 
+      // save to db
       setUploadProgress({
         stage: "saving",
         message: "Saving to database...",
       });
 
+      // complete save -> pdf status pending ready to generate
       const uploadResponse = await pdfService.uploadPDF(file);
       const uploadedPDF = uploadResponse.data || uploadResponse;
 
@@ -292,6 +296,7 @@ export const PDFSummarizer: React.FC = () => {
     setUploadError(null);
 
     try {
+      // trigger generate summary process
       const generateResponse = await pdfService.generateSummary(
         activePDF.id,
         language,
